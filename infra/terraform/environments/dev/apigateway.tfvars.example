@@ -1,0 +1,7 @@
+enable_cloud_run      = true
+container_image       = "asia-southeast1-docker.pkg.dev/gen-lang-client-0710663107/smartcareops/backend@sha256:495ad0dd4eedb4470b1d7985958850ef0d3feda8b880759fbdd5408c88c3c3b9"
+gemini_secret_version = "latest"
+enable_api_gateway    = true
+enable_load_balancer  = false
+enable_monitoring     = false
+gateway_region        = "asia-northeast1"

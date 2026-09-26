@@ -1,0 +1,17 @@
+.clinical-workspace { margin-top: 2rem; border-top: 2px solid #b9d7df; padding-top: 1.5rem; overflow-wrap: anywhere; }
+.clinical-controls, .clinical-action { display: flex; flex-wrap: wrap; gap: .7rem; align-items: center; }
+.clinical-action p { flex-basis: 100%; margin: .2rem 0; }
+.clinical-plan { padding: 1rem; margin: 1rem 0; border: 1px solid #b9d7df; border-radius: .6rem; }
+.clinical-analysis, .clinical-explanation, .clinical-activity { padding: 1rem; margin: 1rem 0; border-radius: .6rem; }
+.clinical-analysis { background: #eef7f8; border-left: 4px solid #39788a; }
+.clinical-explanation { background: #fff8e8; border-left: 4px solid #c38728; }
+.clinical-activity { background: #f4f2fa; border-left: 4px solid #7465a8; }
+.clinical-analysis h5, .clinical-explanation h5 { margin-bottom: .35rem; }
+.clinical-resources { padding: 1rem; background: #eef7f8; border-radius: .6rem; }
+.clinical-resource-card { padding: .8rem; margin: .6rem 0; border-left: 3px solid #719ba5; background: #fff; }
+.clinical-resource-card p { margin: .4rem 0; }
+.clinical-resource-card button { max-width: 100%; white-space: normal; }
+#clinical-observe { display: grid; gap: .8rem; max-width: 40rem; margin: 1rem 0; }
+#clinical-observe[hidden] { display: none; }
+#clinical-observe label { display: grid; gap: .25rem; }
+#clinical-observe input, #clinical-observe select { min-width: 0; width: 100%; padding: .5rem; box-sizing: border-box; }

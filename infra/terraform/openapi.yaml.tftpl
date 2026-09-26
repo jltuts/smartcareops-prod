@@ -1,0 +1,377 @@
+swagger: "2.0"
+info:
+  title: SmartCareOps DEV health baseline
+  version: "1.0.0"
+schemes: [https]
+produces: [application/json]
+x-google-allow: configured
+x-google-backend:
+  address: ${backend_url}
+  jwt_audience: ${backend_url}
+  path_translation: APPEND_PATH_TO_ADDRESS
+  deadline: 15.0
+# Public health metadata only. Never publish patient/clinical routes without auth.
+paths:
+  /health:
+    get:
+      operationId: health
+      responses:
+        "200":
+          description: API process is serving HTTP
+  /readyz:
+    get:
+      operationId: readyz
+      responses:
+        "200":
+          description: Cached startup Firestore read and secret presence checks passed
+        "503":
+          description: Required startup dependencies are not ready
+%{ if enable_auth_routes ~}
+  /api/auth/me:
+    get:
+      operationId: authenticatedIdentity
+      responses:
+        "200":
+          description: Backend-verified Firebase identity and server-owned DEV access
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Origin not allowed
+    options:
+      operationId: identityCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+%{ endif ~}
+%{ if enable_m15 ~}
+  /api/simulation:
+    get:
+      operationId: readSyntheticNetworkSimulation
+      responses:
+        "200":
+          description: Synthetic Command Center healthcare network snapshot
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role required
+    options:
+      operationId: simulationReadCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/simulation/advance:
+    post:
+      operationId: advanceSyntheticNetworkSimulation
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Advance the deterministic simulation by a bounded number of ticks
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role required
+    options:
+      operationId: simulationAdvanceCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/simulation/scenario:
+    post:
+      operationId: selectSyntheticNetworkScenario
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Reset simulation to a known scenario starting state
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role required
+    options:
+      operationId: simulationScenarioCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/simulation/reset:
+    post:
+      operationId: resetSyntheticNetworkSimulation
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Restore the selected scenario's deterministic initial state
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role required
+    options:
+      operationId: simulationResetCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+%{ endif ~}
+%{ if enable_m16 ~}
+  /api/caretwin:
+    get:
+      operationId: readCareTwinPlan
+      responses:
+        "200":
+          description: Persisted simulated futures and advisory CareTwin recommendation
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role required
+    options:
+      operationId: careTwinReadCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/caretwin/generate:
+    post:
+      operationId: generateCareTwinPlans
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Simulate exactly three plans from one M15 baseline and compare the outcomes
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role or exact Origin required
+    options:
+      operationId: careTwinGenerateCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/caretwin/decision:
+    post:
+      operationId: decideCareTwinRecommendation
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Persist an advisory Approve, Reject, or Defer decision; no execution occurs
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role or exact Origin required
+    options:
+      operationId: careTwinDecisionCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+%{ endif ~}
+%{ if enable_m17 ~}
+  /api/predictive:
+    get:
+      operationId: readPersistedPredictiveForecast
+      responses:
+        "200":
+          description: Persisted deterministic M15 forecast and advisory interpretation
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role required
+    options:
+      operationId: predictiveReadCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/predictive/generate:
+    post:
+      operationId: generatePredictiveForecast
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Project independent 30, 60, and 120 minute M15 trajectories and interpret them
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role or exact Origin required
+    options:
+      operationId: predictiveGenerateCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+%{ endif ~}
+%{ if enable_hosted_live ~}
+  /api/profile:
+    get:
+      operationId: readOwnProfile
+      responses:
+        "200":
+          description: Firebase-authenticated caller reads their own backend-owned profile
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Origin not allowed or account inactive
+    patch:
+      operationId: updateOwnProfile
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Allowlisted profile fields updated for the verified Firebase UID
+        "400":
+          description: Invalid or protected profile field
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Origin not allowed or account inactive
+    options:
+      operationId: profileCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/live/session:
+    post:
+      operationId: createLiveSession
+      responses:
+        "201":
+          description: Short-lived one-time opaque Live session
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+    options:
+      operationId: liveSessionCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/intake-finalization:
+    get:
+      operationId: readOwnedIntakeFinalization
+      responses:
+        "200":
+          description: Completed UID-bound intake finalization result
+        "202":
+          description: Finalization remains pending
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+        "404":
+          description: Finalization missing, expired, or owned by another UID
+    options:
+      operationId: finalizationCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/cases/{caseId}:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: readOwnedPatientCase
+      responses:
+        "200":
+          description: Firebase-authenticated Patient reads their UID-bound persisted case
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+        "404":
+          description: Case missing or not owned by the verified Patient UID
+    options:
+      operationId: patientCaseCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/dispatcher/cases:
+    get:
+      operationId: listDispatcherEmergencyCases
+      responses:
+        "200":
+          description: Dispatcher-role emergency queue
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Dispatcher role or exact Origin required
+    options:
+      operationId: dispatcherQueueCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/doctor/cases:
+    get:
+      operationId: listDoctorCases
+      responses:
+        "200":
+          description: Doctor-role clinical review queue
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Doctor role or exact Origin required
+    options:
+      operationId: doctorQueueCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/doctor/cases/{caseId}:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: readDoctorCase
+      responses:
+        "200":
+          description: Doctor-role case detail with patient-reported facts
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Doctor role or exact Origin required
+    options:
+      operationId: doctorCaseCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/clinical:
+    get:
+      operationId: readClinicalReasoning
+      responses:
+        "200":
+          description: Doctor-role durable AI interpretation and decision state
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Doctor role or exact Origin required
+    options:
+      operationId: clinicalReasoningCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/clinical/run:
+    post:
+      operationId: requestClinicalReasoning
+      responses:
+        "200":
+          description: Request an idempotent bounded Doctor reasoning run
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Doctor role or exact Origin required
+    options:
+      operationId: clinicalRunCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/clinical/approvals/{approvalId}:
+    parameters:
+      - name: approvalId
+        in: path
+        required: true
+        type: string
+    post:
+      operationId: decideClinicalRecommendation
+      responses:
+        "200":
+          description: Persist an approved, rejected, or deferred Doctor decision
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Doctor role or exact Origin required
+    options:
+      operationId: clinicalApprovalCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+%{ endif ~}

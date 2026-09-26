@@ -1,0 +1,18 @@
+project_id = "gen-lang-client-0710663107"
+region = "asia-southeast1"
+environment = "dev"
+artifact_repository = "smartcareops"
+cloud_run_service_name = "smartcareops-api"
+api_gateway_name = "smartcareops-dev"
+# Default first plan: adopt Firestore/APIs and create foundation only.
+enable_cloud_run = false
+enable_api_gateway = false
+enable_load_balancer = false
+enable_monitoring = false
+container_image = null
+gemini_secret_version = null
+# Explicit decision required: Gateway is not available in asia-southeast1.
+gateway_region = null
+domain_name = null
+notification_channels = []
+# Never add secrets to tfvars. See README for separate secret-version upload.

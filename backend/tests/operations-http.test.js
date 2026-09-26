@@ -1,0 +1,20 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
+import { operationsFixture } from './operations-fixtures.js';
+import { operationsEndpoint } from '../src/operations/http.js';
+test('operations HTTP rejects foreign origins, forged scope/reviewer and arbitrary tools', async t => {
+  const f = await operationsFixture(); await f.service.tick(); const origin = 'http://localhost:4173';
+  const server = createServer(operationsEndpoint(f.service, [origin])); server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(async () => { await f.service.close(); await new Promise(resolve => server.close(resolve)); });
+  const base = `http://127.0.0.1:${server.address().port}/api/operations`;
+  const post = (path, body, from = origin) => fetch(base + path, { method: 'POST', headers: { Origin: from, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  assert.equal((await post('/run', { requestId: 'bad' }, 'https://evil.test')).status, 403);
+  assert.equal((await post('/run', { requestId: 'bad', hospitalId: 'HOSP-003' })).status, 400);
+  assert.equal((await post('/execute_shell', {})).status, 400);
+  const view = await (await fetch(base)).json(), approval = view.approvals[0];
+  assert.equal((await post(`/approvals/${approval.approvalId}`, { decision: 'approved', reviewerId: 'admin' })).status, 400);
+  assert.equal((await post(`/approvals/${approval.approvalId}`, { decision: 'approved' })).status, 200);
+  await f.service.tick(); assert.equal((await f.service.view()).receipts.length, 3);
+});
