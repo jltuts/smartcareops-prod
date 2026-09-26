@@ -1,0 +1,5 @@
+.notification-center { margin: 2rem auto; padding: 1.25rem; max-width: 76rem; border: 1px solid #aebbc6; border-radius: .75rem; background: #f8fafc; color: #172b3a; }
+.notification-center article { background: white; border: 1px solid #c7d3dc; border-radius: .5rem; padding: 1rem; margin-top: 1rem; overflow-wrap: anywhere; }
+.notification-center button { padding: .6rem .85rem; margin: .25rem .5rem .25rem 0; cursor: pointer; }
+.notification-center p { line-height: 1.5; overflow-wrap: anywhere; }
+.notification-center a { color: #154c85; }

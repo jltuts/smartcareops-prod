@@ -1,0 +1,25 @@
+{
+  "name": "smartcareops-api",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "engines": {
+    "node": "24.x"
+  },
+  "scripts": {
+    "start": "node src/server.js",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@google-cloud/firestore": "^9.2.0",
+    "@google/genai": "^2.21.0",
+    "firebase-admin": "^14.5.0",
+    "playwright": "1.63.0",
+    "ws": "^8.21.3"
+  },
+  "overrides": {
+    "gaxios@6": {
+      "uuid": "11.1.1"
+    }
+  }
+}

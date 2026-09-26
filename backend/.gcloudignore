@@ -1,0 +1,15 @@
+.git/
+node_modules/
+.env
+.env.*
+*.log
+**/*service-account*.json
+**/*serviceAccount*.json
+**/*firebase-adminsdk*.json
+**/*credentials*.json
+**/credential*.json
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/keys/

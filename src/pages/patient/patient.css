@@ -1,0 +1,49 @@
+.patient-page > p { max-width: 760px; }
+.patient-page .scope-note { margin-bottom: 24px; }
+.conversation-panel { padding: 28px; border: 1px solid #d7e1da; border-radius: 16px; background: #fff; max-width: 850px; }
+.conversation-panel h2 { margin-top: 0; }
+.conversation-status, .conversation-controls { display: flex; flex-wrap: wrap; gap: 16px; margin: 18px 0; }
+.conversation-status { font-size: 14px; }
+.conversation-controls button { font: inherit; font-size: 14px; font-weight: 650; padding: 12px 18px; border: 1px solid #185c51; border-radius: 9px; background: #185c51; color: #fff; cursor: pointer; }
+.conversation-controls #end-conversation { background: #fff; color: #185c51; }
+.conversation-controls button:disabled { opacity: .5; cursor: default; }
+.conversation-controls button:focus-visible { outline: 3px solid #207c70; outline-offset: 4px; }
+#session-help, #transcript-empty { color: #52665e; font-size: 14px; }
+#conversation-error { color: #8b2424; padding: 12px; background: #fff2f0; border-radius: 8px; }
+#transcript { list-style: none; padding: 0; margin-bottom: 0; max-height: 440px; overflow-y: auto; overflow-wrap: anywhere; }
+#transcript li { padding: 14px 16px; margin-block: 10px; background: #f0f6f1; border-radius: 10px; }
+#transcript li[data-role="Patient"] { background: #f1f4f8; }
+#transcript p { margin: 4px 0 0; white-space: pre-wrap; }
+@media (max-width: 560px) { .conversation-panel { padding: 18px; } }
+.patient-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 24px; align-items: start; }
+.patient-workspace .conversation-panel { position: sticky; top: 20px; }
+.intake-panel { min-width: 0; border: 1px solid #cfdcd4; border-radius: 16px; background: #fff; padding: 24px; overflow-wrap: anywhere; }
+.intake-panel h2 { margin-top: 0; }
+.intake-panel h3 { font-size: 16px; margin: 0 0 12px; }
+.intake-panel h4 { font-size: 13px; margin: 12px 0 6px; }
+.intake-panel section { border-top: 1px solid #e0e7e1; padding-top: 18px; margin-top: 18px; }
+.intake-explanation, #intake-status, .operational-note p { font-size: 12px; color: #52665e; }
+.intake-panel ul { list-style: none; padding: 0; margin: 0; }
+.intake-panel li { padding: 10px; margin: 6px 0; background: #f0f5f1; border-radius: 6px; }
+.intake-panel li[data-status="unclear"] { background: #fff6df; }
+.intake-panel li[data-status="denied"] { background: #f1f3f6; }
+.intake-label { display: inline-block; font-size: 9px; letter-spacing: .04em; border: 1px solid #ccd9d0; border-radius: 4px; padding: 2px 5px; margin-left: 8px; color: #385548; vertical-align: middle; }
+.intake-fact { display: flex; flex-wrap: wrap; gap: 6px; align-items: baseline; padding: 8px 0; font-size: 13px; }
+.intake-fact strong { flex: 1 0 45%; }
+.intake-evidence { display: block; flex-basis: 100%; color: #5a6a61; font-size: 12px; margin-top: 4px; }
+.intake-empty { color: #657568; margin: 4px 0; }
+.operational-note { background: #f6f7fa; padding: 14px; border-radius: 8px; }
+.operational-note .intake-label { margin: 6px 0 0; }
+@media (max-width: 800px) { .patient-workspace { grid-template-columns: minmax(0, 1fr); } .patient-workspace .conversation-panel { position: static; } }
+
+.handoff-panel { margin-top: 1.5rem; padding: 1.5rem; border: 1px solid #c8d5d3; border-radius: 12px; background: #f7faf9; overflow-wrap: anywhere; }
+.handoff-panel label { display: flex; align-items: flex-start; gap: .6rem; margin: 1rem 0; }
+.handoff-panel input[type=checkbox] { width: auto; margin-top: .25rem; }
+#handoff-events { max-height: 18rem; overflow: auto; padding-left: 1.5rem; }
+#handoff-events li { margin: .6rem 0; }
+#handoff-confirmation { padding: 1rem; border: 2px solid #96702b; }
+#handoff-confirmation button { margin: .3rem; padding: .6rem; }
+.handoff-stages { display: flex; flex-wrap: wrap; gap: .6rem 1.6rem; padding-left: 1.4rem; font-size: .875rem; }
+.handoff-stages li { padding: .25rem; }
+.handoff-stages [aria-current="step"] { font-weight: 700; text-decoration: underline; text-underline-offset: .25rem; }
+.handoff-stages [data-complete] { color: #24623e; }
