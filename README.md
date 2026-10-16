@@ -4,7 +4,7 @@
 
 SmartCareOps is a healthcare intake and coordination prototype built for Google Cloud AI Builder Cup 2026 by **Constellation Builders**. It combines patient voice or text intake, structured case records, clinician review, and simulated operational coordination.
 
-This repository is the **source showcase for judges**. Development and deployments are maintained separately. This repository has no deployment workflow and does not provision or operate a cloud environment.
+This repository contains the SmartCareOps application source, automated tests, and architecture documentation. Its CI workflow builds and tests the code; it does not deploy cloud services.
 
 ## Start here
 
@@ -65,4 +65,4 @@ See [local verification](docs/LOCAL_VERIFICATION.md) before attempting interacti
 
 This is a competition prototype, not a clinical service. It does not replace a clinician or establish a medical diagnosis. Patient-reported facts, model interpretation, and clinician decisions are separate. Ambulance and hospital demonstration data are fictional; no real emergency dispatch is provided.
 
-This review snapshot was prepared from development commit `80fbf05` plus the working-tree edits listed in [snapshot provenance](docs/SNAPSHOT.md). It is not a declaration of deployment or release acceptance.
+See [validation results](docs/VALIDATION.md) for automated checks and their scope.

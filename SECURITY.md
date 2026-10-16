@@ -1,17 +1,19 @@
-# Security scope
+# Security
 
-This repository is a public code showcase. Do not add patient records, real transcripts, laboratory reports, private screenshots, credentials, Terraform state/plans, or deployment secrets.
+Do not commit patient records, real transcripts, laboratory reports, private screenshots, credentials, Terraform state/plans, or deployment secrets.
 
-Do not post suspected credentials or personal data in a public issue. Use GitHub private vulnerability reporting if it is enabled; otherwise contact the maintainer privately before sending details. The repository owner must verify this reporting channel before publication.
+## Reporting a vulnerability
 
-## Repository controls to verify before publication
+Do not include credentials or personal data in a public issue. Use GitHub private vulnerability reporting when available; otherwise contact the maintainer privately before sharing sensitive details.
 
-- Enable secret scanning, push protection, dependency alerts, and private vulnerability reporting.
-- Protect the default branch and require the verification workflow to pass.
-- Keep workflow permissions read-only and grant no cloud deployment credentials.
+## Repository safeguards
+
+- Use secret scanning, push protection, and dependency alerts.
+- Protect the default branch and require automated verification.
+- Keep CI permissions read-only and exclude cloud deployment credentials.
 - Review account MFA, collaborators, installed apps, deploy keys, webhooks, and Actions secrets.
-- Review all existing branches, tags, pull requests, and historical commits for old material before changing visibility.
+- Review historical commits as well as current files for sensitive material.
 
-The current review removes clutter from the proposed tree; it does not rewrite existing history or delete remote branches. Historical files remain accessible if that history is published.
+## Application scope
 
-Application source is preserved for review, including its prototype limitations. Repository cleanup is not a penetration test or certification of the deployed application. Existing project identifiers and URLs are not access credentials; cloud authorization remains a separate responsibility.
+SmartCareOps is a prototype. Automated tests and dependency scans are not a penetration test or certification of the deployed application. Project identifiers and URLs are not access credentials; cloud authorization must be configured separately. See [validation results](docs/VALIDATION.md) for the checks performed.

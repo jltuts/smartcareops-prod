@@ -1,7 +1,6 @@
-# Google Live local restart baseline
+# Google Gemini Live reference source
 
-Copied from the exact local demo the operator tested at http://localhost:8000:
-the upstream example frontend.
+Adapted from the upstream example frontend.
 
 Upstream: https://github.com/google-gemini/gemini-live-api-examples/tree/main/gemini-live-ephemeral-tokens-websocket
 

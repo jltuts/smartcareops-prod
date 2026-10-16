@@ -21,9 +21,9 @@ The diagram summarizes logical responsibilities; not every arrow is a synchronou
 
 The frontend, API, and clinical runtime are separate source areas. The API is the enforcement boundary for identity, permissions, validated case transitions, approval binding, and connector execution. Browser UI visibility alone is not an authorization mechanism.
 
-Infrastructure source is retained for architectural review, including API contracts used by regression tests. It does not authorize a deployment. Environment-specific plans, state, credentials, import configuration, and deployment runbooks are excluded from this showcase.
+Infrastructure definitions describe the cloud architecture and include API contracts exercised by regression tests. Environment-specific state, saved plans, credentials, and import configuration are excluded.
 
-Some application constants and bundled policy records contain existing public project/resource identifiers. Identifiers are not credentials. They are retained where changing them would diverge from the reviewed code or break policy provenance; this copy is not configured to operate those resources.
+Some application constants and bundled policy records contain existing public project/resource identifiers. Identifiers are not credentials. They identify the implementation environment and preserve policy provenance. Access to those resources requires separate cloud authorization.
 
 The policy corpus is fictional. Its completion receipt is retained because the runtime bundle test checks exact agreement with that receipt. It is not patient data or an access token.
 

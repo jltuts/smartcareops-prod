@@ -6,8 +6,8 @@ The files in `src/pages/patient/google-reference/` and the corresponding worklet
 
 https://github.com/google-gemini/gemini-live-api-examples/tree/main/gemini-live-ephemeral-tokens-websocket
 
-See [`SOURCE.md`](src/pages/patient/google-reference/SOURCE.md) for the adaptation description. Preserve upstream notices and verify the license for the exact upstream revision before publication. This notice does not assert ownership of third-party source or grant a new license.
+See [`SOURCE.md`](src/pages/patient/google-reference/SOURCE.md) for the adaptation description. Upstream notices and licensing terms apply to the incorporated code. This notice does not assert ownership of third-party source or grant a new license.
 
 Google Cloud service graphics and marks are used to explain integrations. They remain the property of their respective owners and do not imply endorsement.
 
-A project-wide license has not been selected in this review. Public visibility alone does not grant an open-source license. The maintainer should choose any licensing terms intentionally and confirm compatibility with incorporated material and competition requirements.
+No project-wide license is currently specified. Public visibility alone does not grant an open-source license. The maintainer should choose any licensing terms intentionally and confirm compatibility with incorporated material and competition requirements.

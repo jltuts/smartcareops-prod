@@ -28,8 +28,8 @@ The test setup owns local API and Vite servers and uses fictional fixtures. Port
 
 The example environment files contain no credentials. They describe local memory storage and local-demo authentication, which are development-only modes. The backend does not automatically load its example file; configure process variables explicitly if starting it manually. Real Gemini calls require your own server-side key and may incur usage charges. Do not put a Gemini key in a `VITE_` variable.
 
-The unchanged source includes environment-bound authentication checks and cloud adapters. This showcase is not a turnkey cloud installation. Live authentication, maps, voice, clinical runtime, and provider integrations need separate configuration and acceptance. Do not use deployment scripts or infrastructure apply commands from this repository.
+The source includes environment-bound authentication checks and cloud adapters. Live authentication, maps, voice, clinical runtime, and provider integrations need separate configuration and acceptance. Do not use deployment scripts or infrastructure apply commands from this repository.
 
-## Publication checks
+## Secret checks
 
-Run `python backend/scripts/scan-secrets.py` after staging the intended snapshot. This is a pattern scanner with limited coverage, not a guarantee that every kind of sensitive information is absent. Review document metadata and Git history as well as current files. See `SECURITY.md`.
+Run `python backend/scripts/scan-secrets.py` against the tracked source. This is a pattern scanner with limited coverage, not a guarantee that every kind of sensitive information is absent. Review document metadata and Git history as well as current files. See `SECURITY.md`.

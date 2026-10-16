@@ -63,7 +63,7 @@ crash.*.log
 # Local PowerShell deployment helpers
 /scripts/*.ps1
 
-# Judge showcase: generated and private review material
+# Generated output and local artifacts
 output/
 outputs/
 tmp/
