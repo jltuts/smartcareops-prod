@@ -1,62 +1,72 @@
-# Dependencies
 node_modules/
-backend/node_modules/
-
-# Build output
 dist/
-backend/dist/
-
-# Environment
 .env
 .env.*
 !.env.example
+playwright-report/
+test-results/
+blob-report/
+*.log
+.DS_Store
+.firebase/
+**/*service-account*.json
+**/*serviceAccount*.json
+**/*firebase-adminsdk*.json
+**/*credentials*.json
+**/credential*.json
+**/keys/
+**/*.pem
+**/*.key
+**/*.p12
+**/*.pfx
+**/firestore-export/
+**/firebase-export-*/
+.m4-*.json
+.m5-*.json
+.m5-*.png
+.m6-*.json
+.m6-*.png
+.m7-*.json
+.m7-*.png
+.m8-*.json
+.m8-*.png
+.m9-*.json
+.m9-*.png
+.m10-*.json
+.m10-*.png
+.m11-*.json
+.m11-*.png
+.m12-*.json
+.m12-*.png
+.bounded-*.json
+.bounded-*.png
+.auto-*.json
+.auto-*.png
 
-# Secrets / credentials
-*.pem
-*.key
-*.p12
-*.pfx
-service-account*.json
-firebase-admin*.json
-credentials*.json
-
-# Terraform
+.architecture-*.json
+.architecture-*.png
+# Terraform: local state, downloaded providers, credentials and saved plans
+**/.terraform/
 *.tfstate
 *.tfstate.*
 *.tfplan
-terraform.tfvars
-terraform.tfvars.json
-.terraform/
-.terraform.lock.hcl.backup
+*.tfplan.*
+*.plan.json
+crash.log
+crash.*.log
+*.tfvars
+*.tfvars.json
+!*.tfvars.example
+!*.tfvars.json.example
+.terraform-work/
 
-# Logs
-*.log
-logs/
+# Local PowerShell deployment helpers
+/scripts/*.ps1
 
-# Playwright
-test-results/
-playwright-report/
-blob-report/
-
-# Coverage
-coverage/
-
-# IDE / OS
-.DS_Store
-Thumbs.db
-.vscode/
-.idea/
-
-# Temporary files
+# Judge showcase: generated and private review material
+output/
+outputs/
 tmp/
-temp/
-*.tmp
-*.bak
-*.swp
+installers/
+*.tfplan
 ~$*
-
-# Internal development artifacts
-HANDOFF.md
-prompt-history/
-debug/
-scratch/

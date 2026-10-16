@@ -1,124 +1,68 @@
 # SmartCareOps
 
-SmartCareOps — AI that doesn’t just assess. It coordinates care.
+**From first contact to the right care.**
 
-SmartCareOps is an AI-powered healthcare coordination platform. It connects patient intake, clinical review, hospital capability and capacity, ambulance dispatch, and command center monitoring into a unified operational workflow.
+SmartCareOps is a healthcare intake and coordination prototype built for Google Cloud AI Builder Cup 2026 by **Constellation Builders**. It combines patient voice or text intake, structured case records, clinician review, and simulated operational coordination.
 
-## Core Idea
+This repository is the **source showcase for judges**. Development and deployments are maintained separately. This repository has no deployment workflow and does not provision or operate a cloud environment.
 
-Most healthcare AI stops after giving an answer, while SmartCareOps helps coordinate what happens next.
+## Start here
 
-It connects:
-patient intake → clinical review → hospital capability/capacity → ambulance coordination → command center monitoring → predictive planning
+1. Read the [code walkthrough](docs/CODE_WALKTHROUGH.md) to follow a case through the system.
+2. Review the [architecture and boundaries](docs/ARCHITECTURE.md).
+3. See [local verification](docs/LOCAL_VERIFICATION.md) for builds and automated tests.
+4. Read the [security scope](SECURITY.md) and [third-party attribution](THIRD_PARTY_NOTICES.md).
 
-Patient Intake understands the present.
-Doctor Portal reasons about the individual.
-Command Center reasons about the future of the healthcare system.
+## What the code implements
 
-Journey:
-first contact → understand → reason → triage → route → coordinate → respond → monitor → learn
+- **Patient portal:** Gemini Live voice intake and text intake, structured extraction of patient-reported information, case history, and status updates.
+- **Doctor portal:** clinical assessment, laboratory evidence review, and explicit approval gates for proposed hospital actions.
+- **Dispatcher portal:** emergency coordination and fictional ambulance workflows.
+- **Command center:** operational views, regional aggregation, simulation, CareTwin scenario comparison, pattern detection, and predictive planning.
+- **Backend:** authenticated API paths, role checks, durable case/evidence adapters, Pub/Sub processing, notifications, and guarded clinical orchestration.
+- **Agent runtime:** a separate clinical runtime with policy evidence and local evaluation tests.
 
-## Three Intelligence Layers
+Feature availability depends on configuration, roles, and enabled flags. Included code is not a claim that every integration is enabled in the demonstration.
 
-### Patient Intake
-- Gemini Live voice intake
-- Captures patient-reported symptoms, vitals, and context
+## Care journey
 
-### Doctor Portal
-- AI-assisted case analysis
-- Risks
-- Missing information
-- Recommendations
-- Why / Why Not
-- Human approval
+```text
+Patient voice or text intake
+  -> structured patient-reported facts
+  -> persisted case and deterministic safety checks
+  -> clinician review and proposed action
+  -> explicit approval and execution checks
+  -> hospital connector and verified receipt
 
-### Command Center
-- Hospital/network monitoring
-- Ambulance state
-- Simulation
-- CareTwin Plan A/B/C comparison
-- Predictive intelligence
+Emergency cases follow a separate dispatcher coordination workflow.
+```
 
-## Main Features
-
-- Gemini Live patient intake
-- Structured patient case records
-- Doctor reasoning workspace
-- Hospital capability/capacity monitoring
-- Ambulance simulation
-- Healthcare network simulation
-- CareTwin counterfactual planning
-- Predictive Command Center
-- Human approval for important actions
+The primary hospital connector is REST to a fictional provider simulator. Computer Use is an explicitly configured legacy connector; REST errors do not automatically switch to it.
 
 ## Technology
 
-### AI
-- Gemini API
-- Gemini Live
-- Structured output
-- Function calling
+Vite and JavaScript power the frontend, with Firebase Authentication integration, GSAP, and Lenis. The Node.js backend integrates Gemini, Firestore, Cloud Storage, Pub/Sub, and Google ADK. Terraform source documents the Cloud Run, API Gateway, IAM, monitoring, and related infrastructure design. Node tests and Playwright cover the application behavior.
 
-### Google Cloud
-- Firebase Hosting
-- Firebase Authentication
-- Firestore
-- Cloud Run
-- API Gateway
-- Secret Manager
-- Cloud Logging
-- Cloud Monitoring
+See [architecture](docs/ARCHITECTURE.md) for the distinction between application source, optional cloud adapters, and simulated services.
 
-### Frontend
-- Vite
-- Vanilla JavaScript
-- HTML
-- CSS
-- Three.js
+## Review and verification
 
-### Testing
-- Playwright
-- Node.js tests
-- GitHub Actions
+Use **Node.js 24** and the committed lockfiles. No cloud credentials are required for source review, frontend compilation, or the documented isolated test suites.
 
-## Safety
-
-SmartCareOps separates:
-- Patient-reported facts
-- AI interpretation
-- Doctor assessment
-
-Important actions require human approval.
-
-API keys remain server-side.
-
-## Local Development
-
-```bash
-npm install
-npm --prefix backend install
+```sh
+npm ci
+npm --prefix backend ci
+npm --prefix agent-runtime/clinical-shadow ci
+npm run build
+npm --prefix backend test
+npm --prefix agent-runtime/clinical-shadow test
+node --test tests/maps-build-config.test.js
 ```
 
-Frontend:
-```bash
-npm run dev
-```
+See [local verification](docs/LOCAL_VERIFICATION.md) before attempting interactive or live-provider use. Automated tests use fictional data and controlled adapters; they do not certify physical-phone audio or live clinical behavior.
 
-Backend:
-```bash
-npm --prefix backend start
-```
+## Scope and limitations
 
-## Routes
+This is a competition prototype, not a clinical service. It does not replace a clinician or establish a medical diagnosis. Patient-reported facts, model interpretation, and clinician decisions are separate. Ambulance and hospital demonstration data are fictional; no real emergency dispatch is provided.
 
-- /patient
-- /doctor
-- /dispatcher
-- /command-center
-- /profile
-
-## Competition
-
-Built for Google AI Builder Cup 2026.
-
-Team: Constellation Builders
+This review snapshot was prepared from development commit `80fbf05` plus the working-tree edits listed in [snapshot provenance](docs/SNAPSHOT.md). It is not a declaration of deployment or release acceptance.

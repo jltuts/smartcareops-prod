@@ -10,13 +10,18 @@ export function encodePcm(samples) {
 
 export class ConversationAudio {
   constructor(onDrained) {
-    this.context = new AudioContext();
+    this.context = new AudioContext({ sampleRate: 16000 });
     this.sources = new Set();
     this.nextStart = 0;
     this.onDrained = onDrained;
   }
+  async prepareDuplex() {
+    if (navigator.audioSession && 'type' in navigator.audioSession) navigator.audioSession.type = 'play-and-record';
+    if (this.context.state !== 'running') await this.context.resume();
+    if (this.context.state !== 'running') throw new Error('Audio playback is unavailable');
+  }
   async capture(stream, onSamples) {
-    await this.context.audioWorklet.addModule(new URL('./microphone-worklet.js', import.meta.url));
+    await this.context.audioWorklet.addModule('/audio-worklet-processor.js');
     if (this.context.state === 'closed') return;
     this.input = this.context.createMediaStreamSource(stream);
     this.worklet = new AudioWorkletNode(this.context, 'smartcareops-microphone');
@@ -60,5 +65,8 @@ export class ConversationAudio {
     this.input?.disconnect();
     if (this.worklet) { this.worklet.port.onmessage = null; this.worklet.disconnect(); this.worklet.port.close(); }
     if (this.context.state !== 'closed') void this.context.close();
+    if (navigator.audioSession && 'type' in navigator.audioSession) {
+      try { navigator.audioSession.type = 'auto'; } catch {}
+    }
   }
 }

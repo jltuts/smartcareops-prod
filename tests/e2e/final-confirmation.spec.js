@@ -104,7 +104,7 @@ for (const run of ['legacy', 'jl', 'bp-concern', 'noisy-batch', 'no-and-nothing-
       await opened;
     });
     await page.goto('/patient');
-    await page.locator('#intake-fictional').check();
+    await page.locator('[data-intake-mode="voice"]:visible').first().click(); await page.locator('#intake-fictional').check();
     await page.getByRole('button', { name: 'Start Conversation' }).click();
     await expect(page.locator('#connection-status')).toHaveText('Connected');
     await page.evaluate(() => window.capturedStreams.forEach(s => s.getTracks().forEach(t => { t.enabled = false; })));

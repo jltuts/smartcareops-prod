@@ -8,17 +8,30 @@
   },
   "scripts": {
     "start": "node src/server.js",
-    "test": "node --test tests/*.test.js"
+    "test": "node --test tests/*.test.js",
+    "evaluate:m60": "node scripts/evaluate-m60-models.js",
+    "prepare:m60-managed-ingestion": "node scripts/prepare-m60-managed-ingestion.js",
+    "prepare:m60-policy": "node scripts/prepare-m60-policy-corpus.js",
+    "upload:m60-managed-ingestion": "node scripts/upload-m60-managed-ingestion.js",
+    "validate:m60-policy": "node scripts/validate-m60-policy-corpus.js",
+    "test:pubsub": "node --test tests/pubsub.test.js tests/operations-projection.test.js tests/case-outbox.test.js tests/clinical-firestore.test.js"
   },
   "dependencies": {
     "@google-cloud/firestore": "^9.2.0",
+    "@google-cloud/pubsub": "^6.1.0",
+    "@google-cloud/storage": "^7.22.0",
+    "@google/adk": "2.3.0",
     "@google/genai": "^2.21.0",
     "firebase-admin": "^14.5.0",
     "playwright": "1.63.0",
-    "ws": "^8.21.3"
+    "ws": "^8.21.3",
+    "zod": "4.2.1"
   },
   "overrides": {
     "gaxios@6": {
+      "uuid": "11.1.1"
+    },
+    "teeny-request": {
       "uuid": "11.1.1"
     }
   }

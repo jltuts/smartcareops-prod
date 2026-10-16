@@ -1,4 +1,4 @@
-export const redFlagTypes = ['current chest pain', 'severe difficulty breathing', 'loss of consciousness', 'stroke-like symptoms', 'severe uncontrolled bleeding'];
+export const redFlagTypes = ['current chest pain', 'severe difficulty breathing', 'loss of consciousness', 'stroke-like symptoms', 'severe uncontrolled bleeding', 'patient requested emergency assistance'];
 export const kinds = ['name', 'preferredName', 'symptom', 'redFlag', 'onset', 'temperature', 'bloodPressure', 'heartRate', 'spo2', 'bloodGlucose', 'note'];
 
 export function emptyIntake() {

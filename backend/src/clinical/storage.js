@@ -5,12 +5,13 @@ import { digest } from './contracts.js';
 import { demoFleet } from '../ambulance/fleet.js';
 import { currentEmergency } from '../cases/store.js';
 import { notificationBuckets } from '../notifications/lifecycle.js';
+import { pendingOutboxRecords } from '../events/outbox.js';
 
 // Deliberately bounded, single-patient workspaces. No original case is modified.
 export const buckets = ['observations', 'events', 'agentRuns', 'plans', 'approvals', 'toolExecutions', 'monitoring', 'receipts', 'resourceSnapshots', ...notificationBuckets];
 export const emptyWorkspace = () => ({ meta: null, resourceEnvironment: null, fleetEvidenceVersion: null, ...Object.fromEntries(buckets.map(key => [key, {}])) });
 const fleetVersion = units => 'fleet:' + digest(units.map(({ unitId, status }) => ({ unitId, status })).sort((a, b) => a.unitId.localeCompare(b.unitId)));
-export function memoryClinicalStore(backing = new Map(), readFleet, { empty = emptyWorkspace, hydrate, captureFleet = false, readCase } = {}) {
+export function memoryClinicalStore(backing = new Map(), readFleet, { empty = emptyWorkspace, hydrate, captureFleet = false, readCase, outboxFamily = null, outboxEventTypes = null, outboxBacking = new Map() } = {}) {
   let tail = Promise.resolve();
   const read = async id => {
     const state = structuredClone(backing.get(id) || empty());
@@ -31,17 +32,20 @@ export function memoryClinicalStore(backing = new Map(), readFleet, { empty = em
     read,
     transaction(id, change) {
       const work = tail.then(async () => {
-        const state = await read(id);
+        const state = await read(id), before = structuredClone(state);
         const result = change(state);
         if (result instanceof Promise) throw new Error('Transaction must be synchronous');
-        backing.set(id, state); return structuredClone(result);
+        const outbox = pendingOutboxRecords(before, state, outboxFamily).filter(record => !outboxEventTypes || outboxEventTypes.includes(record.envelope.eventType));
+        backing.set(id, state);
+        for (const record of outbox) if (!outboxBacking.has(record.outboxId)) outboxBacking.set(record.outboxId, record);
+        return structuredClone(result);
       });
       tail = work.catch(() => {}); return work;
     },
     async close() {},
   };
 }
-export function firestoreClinicalStore(db, { rootCollection = 'clinicalWorkspaces', recordBuckets = buckets, empty = emptyWorkspace, hydrate, captureFleet = false, captureCase = false } = {}) {
+export function firestoreClinicalStore(db, { rootCollection = 'clinicalWorkspaces', recordBuckets = buckets, empty = emptyWorkspace, hydrate, captureFleet = false, captureCase = false, outboxFamily = null, outboxEventTypes = null, outboxCollection = 'eventOutbox' } = {}) {
   const root = id => db.collection(rootCollection).doc(id);
   async function read(id, transaction) {
     const ref = root(id), get = query => transaction ? transaction.get(query) : query.get();
@@ -81,6 +85,7 @@ export function firestoreClinicalStore(db, { rootCollection = 'clinicalWorkspace
           for (const key of recordBuckets) for (const [recordId, record] of Object.entries(state[key])) {
             if (!isDeepStrictEqual(record, before[key][recordId])) transaction.set(ref.collection(key).doc(recordId), record);
           }
+          for (const record of pendingOutboxRecords(before, state, outboxFamily).filter(record => !outboxEventTypes || outboxEventTypes.includes(record.envelope.eventType))) transaction.set(db.collection(outboxCollection).doc(record.outboxId), record);
         }
         return result;
       });
@@ -91,7 +96,8 @@ export function firestoreClinicalStore(db, { rootCollection = 'clinicalWorkspace
 export function configuredClinicalStore(env = process.env, { readFleet, readCase, captureCase = false } = {}) {
   const config = environmentConfig(env);
   if (config.environment !== 'development') throw new Error('Clinical reasoning is DEV only');
-  if (env.CASE_STORE === 'memory') return memoryClinicalStore(new Map(), readFleet, { readCase: captureCase ? readCase : undefined });
+  const outboxFamily = env.M55_ENABLED === 'true' ? 'clinical' : null;
+  if (env.CASE_STORE === 'memory') return memoryClinicalStore(new Map(), readFleet, { readCase: captureCase ? readCase : undefined, outboxFamily });
   if (env.CASE_STORE !== 'firestore' || !config.projectId || env.FIRESTORE_EMULATOR_HOST) throw new Error('M8 storage unavailable');
-  return firestoreClinicalStore(new Firestore({ projectId: config.projectId, databaseId: config.database }), { captureCase });
+  return firestoreClinicalStore(new Firestore({ projectId: config.projectId, databaseId: config.database }), { captureCase, outboxFamily });
 }

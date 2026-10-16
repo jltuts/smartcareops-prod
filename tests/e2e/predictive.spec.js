@@ -27,8 +27,9 @@ test('Predictive Command Center restores deterministic horizons and evaluates a 
   await page.goto('/command-center');
   await expect(page.getByRole('heading', { name: 'Predictive Intelligence' })).toBeVisible();
   await page.getByRole('button', { name: 'Generate Forecast' }).click();
-  for (const minutes of [30, 60, 120]) await expect(page.getByRole('heading', { name: `NEXT ${minutes} MIN` })).toBeVisible();
-  await expect(page.getByRole('heading', { name: 'CURRENT' })).toBeVisible();
+  for (const minutes of [30, 60, 120]) await expect(page.getByRole('heading', { name: `+${minutes} MIN` })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'NOW' })).toBeVisible();
+  await expect(page.locator('#predictive-result')).not.toContainText('{"edOccupied"');
   await expect(page.getByRole('heading', { name: 'Why', exact: true })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Why Not' })).toBeVisible();
   await expect(page.getByRole('heading', { name: 'Uncertainty' })).toBeVisible();
@@ -36,7 +37,7 @@ test('Predictive Command Center restores deterministic horizons and evaluates a 
   await page.getByRole('button', { name: 'Evaluate with CareTwin' }).click();
   await expect.poll(() => careTwinGenerated).toBe(1);
   await page.reload();
-  await expect(page.getByRole('heading', { name: 'NEXT 120 MIN' })).toBeVisible();
+  await expect(page.getByRole('heading', { name: '+120 MIN' })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Evaluate with CareTwin' })).toBeVisible();
   expect(generated).toBe(1);
   expect(unrelatedActionRequests).toEqual([]);

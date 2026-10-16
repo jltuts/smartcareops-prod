@@ -32,7 +32,7 @@ for (const connector of ['rest', 'computer_use']) test(`doctor review and approv
     await page.goto('/doctor'); await page.getByRole('button', { name: `Open case ${caseId}`, exact: true }).click();
     await expect(page.locator('#doctor-detail')).toContainText('Waiting for clinical review');
     expect((await clinicalService.view()).approvals).toHaveLength(0); expect(calls).toBe(0);
-    await page.getByRole('button', { name: 'Request assessment', exact: true }).click();
+    await page.getByRole('button', { name: 'Run AI review', exact: true }).click();
     await expect(page.getByRole('button', { name: 'Approve hospital handoff', exact: true })).toBeVisible();
     expect(calls).toBe(0); await page.reload();
     await expect(page.getByRole('button', { name: 'Approve hospital handoff', exact: true })).toBeVisible(); expect(calls).toBe(0);

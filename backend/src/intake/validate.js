@@ -10,10 +10,11 @@ const uncertain = /\b(maybe|possibly|might|not sure|i think|unsure|i guess|don't
 const negative = /\b(no|nope|not|never|without|deny|denies|don't|do not|non)\b/i;
 const redFlagAliases = {
   'current chest pain': ['chest pain', 'pain in my chest'],
-  'severe difficulty breathing': ['severe difficulty breathing', 'severe breathing difficulty', 'cannot breathe', "can't breathe"],
+  'severe difficulty breathing': ['severe difficulty breathing', 'severe breathing difficulty', 'breathing difficulty severe', 'cannot breathe', "can't breathe", 'cannot breath', "can't breath", 'cant breathe', 'cant breath'],
   'loss of consciousness': ['loss of consciousness', 'passed out', 'fainted', 'unconscious'],
   'stroke-like symptoms': ['stroke-like symptoms'],
   'severe uncontrolled bleeding': ['severe uncontrolled bleeding', "bleeding won't stop", 'bleeding will not stop'],
+  'patient requested emergency assistance': ['patient requested emergency assistance', 'need emergency', 'need an emergency', 'need emergency help', 'need emergency assistance', 'need an ambulance', 'call an ambulance', 'this is an emergency'],
 };
 const mentionsRedFlag = (text, label) => (redFlagAliases[label] || [label]).some(term => normalize(text).includes(normalize(term)));
 const numbers = text => (text.match(/\d+(?:\.\d+)?/g) || []).map(Number);
@@ -92,7 +93,9 @@ export function mergeIntake(current, patch, utterances) {
           'invalid schema', 'label', 'patient-evidenced red-flag label', update.label);
       }
       let status = update.status;
-      if (garbled || uncertain.test(quote) || (brief && (!isSingleQuestion(question) || /both|neither/i.test(quote)))) status = 'unclear';
+      const explicitSevereBreathing = update.kind === 'redFlag' && label === 'severe difficulty breathing' &&
+        /(?:^|[.!?]\s*)i\s+(?:cannot|can't|cant)\s+breath(?:e)?\b/i.test(quote);
+      if (garbled || uncertain.test(quote) && !explicitSevereBreathing || (brief && (!isSingleQuestion(question) || /both|neither/i.test(quote)))) status = 'unclear';
       else if (negative.test(quote)) {
         // Mixed affirmative/negative statements require a narrower explicit clarification.
         status = /\b(and|but|however)\b|[,;]/i.test(answer) ? 'unclear' : 'denied';

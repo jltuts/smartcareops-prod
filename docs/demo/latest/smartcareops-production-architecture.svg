@@ -1,0 +1,368 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1600" height="1140" viewBox="0 0 1600 1140">
+  <defs>
+    <style>
+      .bg { fill: #fff; }
+      .group { fill: none; stroke: #d7dde3; stroke-width: 1.4; }
+      .group-title { font: 600 13px Inter,Segoe UI,Arial,sans-serif; fill: #3d4c59; paint-order: stroke; stroke: #fff; stroke-width: 8px; stroke-linejoin: round; }
+      .node { fill: #e6f3ff; stroke: #bdd9ed; stroke-width: 1.25; }
+      .node2 { fill: #f1f8ff; stroke: #c9dfea; stroke-width: 1.25; }
+      .prepared { fill: #fff8e8; stroke: #d6a23d; stroke-width: 1.35; stroke-dasharray: 6 4; }
+      .planned { fill: #f6f8fa; stroke: #aeb8c0; stroke-width: 1.25; stroke-dasharray: 6 4; }
+      .data { fill: #eaf6ff; stroke: #bfd8e8; stroke-width: 1.25; }
+      .heading { font: 700 24px Inter,Segoe UI,Arial,sans-serif; fill: #073b61; }
+      .subtitle { font: 500 13px Inter,Segoe UI,Arial,sans-serif; fill: #527286; }
+      .title { font: 700 13px Inter,Segoe UI,Arial,sans-serif; fill: #075d91; }
+      .small { font: 500 11px Inter,Segoe UI,Arial,sans-serif; fill: #37667f; }
+      .tiny { font: 600 10px Inter,Segoe UI,Arial,sans-serif; fill: #527286; }
+      .edge { fill: none; stroke: #9aa8b2; stroke-width: 1.35; marker-end: url(#arrow); }
+      .link { fill: none; stroke: #9aa8b2; stroke-width: 1.35; }
+      .event { fill: none; stroke: #6e9fbb; stroke-width: 1.45; marker-end: url(#arrowBlue); }
+      .dash { fill: none; stroke: #aab5bd; stroke-width: 1.2; stroke-dasharray: 5 5; marker-end: url(#arrow); }
+      .prepared-edge { fill: none; stroke: #d6a23d; stroke-width: 1.35; stroke-dasharray: 6 4; marker-end: url(#arrowGold); }
+      .planned-edge { fill: none; stroke: #aeb8c0; stroke-width: 1.25; stroke-dasharray: 6 4; marker-end: url(#arrow); }
+      .label-bg { fill: #fff; stroke: #d5e4ee; stroke-width: 1; }
+      .section-label-bg { fill: #fff; }
+      .label { font: 600 10px Inter,Segoe UI,Arial,sans-serif; fill: #28749f; }
+      .icon-bg { fill: #fff; opacity: .78; }
+      .status-ok { font: 600 10px Inter,Segoe UI,Arial,sans-serif; fill: #18745d; }
+      .status-local { font: 600 10px Inter,Segoe UI,Arial,sans-serif; fill: #9a6412; }
+      .status-plan { font: 600 10px Inter,Segoe UI,Arial,sans-serif; fill: #687680; }
+    </style>
+    <marker id="arrow" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,4 L0,8 z" fill="#9aa8b2"/>
+    </marker>
+    <marker id="arrowBlue" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,4 L0,8 z" fill="#6e9fbb"/>
+    </marker>
+    <marker id="arrowGold" markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto" markerUnits="strokeWidth">
+      <path d="M0,0 L8,4 L0,8 z" fill="#d6a23d"/>
+    </marker>
+  </defs>
+
+  <rect class="bg" width="1600" height="1050"/>
+
+  <g transform="translate(55 55)">
+    <rect class="node" width="18" height="18" rx="4"/><text class="small" x="27" y="14">Deployed and verified</text>
+    <text class="small" x="185" y="14">Fictional demonstration · human decisions remain required</text>
+  </g>
+
+  <!-- The three current pathways have different decision boundaries. -->
+  <rect class="group" x="55" y="170" width="740" height="116" rx="2"/>
+  <text class="group-title" x="425" y="190" text-anchor="middle">Event and decision boundaries</text>
+  <g transform="translate(70 205)">
+    <rect class="node2" width="225" height="65" rx="11"/>
+    <text class="title" x="12" y="20">Routine intake</text>
+    <text class="small" x="12" y="38">Doctor review when routed</text>
+    <text class="status-ok" x="12" y="54">No Operations session from intake</text>
+  </g>
+  <g transform="translate(310 205)">
+    <rect class="node2" width="225" height="65" rx="11"/>
+    <text class="title" x="12" y="20">Emergency intake</text>
+    <text class="small" x="12" y="38">Dispatcher queue + in-app notice</text>
+    <text class="status-ok" x="12" y="54">No clinical or Operations run</text>
+  </g>
+  <g transform="translate(550 205)">
+    <rect class="node2" width="225" height="65" rx="11"/>
+    <text class="title" x="12" y="20">Hospital capacity change</text>
+    <text class="small" x="12" y="38">Operations assessment + plan</text>
+    <text class="status-ok" x="12" y="54">High-impact action needs approval</text>
+  </g>
+
+  <!-- Connectors are drawn first so boxes remain visually clean. -->
+  <!-- Users to application entry and synchronous services. -->
+  <path class="link" d="M870 112 V180"/>
+  <path class="link" d="M1050 112 V180"/>
+  <path class="link" d="M1230 112 V180"/>
+  <path class="link" d="M1410 112 V180"/>
+  <path class="link" d="M870 180 H1410"/>
+  <path class="edge" d="M1410 180 V205"/>
+  <path class="edge" d="M1410 265 V292"/>
+  <path class="edge" d="M1410 350 V425 H1412"/>
+  <path class="edge" d="M870 112 V155 H970 V388 H1135 V425"/>
+
+  <!-- Live audio reaches Gemini directly from the browser; API writes the durable outbox. -->
+  <path class="edge" d="M1135 493 V585"/>
+  <path class="edge" d="M1412 493 V585"/>
+  <path class="edge" d="M1135 493 V850 H420 V920"/>
+  <path class="edge" d="M1412 493 V830 H185 V920"/>
+  <path class="edge" d="M1412 493 V805 H758 V915"/>
+  <path class="event" d="M1412 493 V785 H933 V915"/>
+  <path class="edge" d="M1412 493 V865 H1458 V915"/>
+
+  <!-- Durable outbox to event plane. -->
+  <path class="event" d="M960 900 V700 H70 V380 H175"/>
+  <path class="event" d="M255 416 V438"/>
+  <path class="event" d="M255 495 V526 H165 V548"/>
+  <path class="event" d="M255 495 V526 H365 V548"/>
+  <path class="event" d="M255 495 V526 H565 V548"/>
+  <path class="event" d="M255 495 V526 H765 V548"/>
+  <path class="dash" d="M335 466 H650 V421 H690"/>
+  <path class="dash" d="M525 690 H620 V445 H690"/>
+
+  <!-- Subscription retries and workers. -->
+  <path class="edge" d="M165 606 V740"/>
+  <path class="edge" d="M365 606 V740"/>
+  <path class="edge" d="M565 606 V740"/>
+  <path class="edge" d="M765 606 V740"/>
+  <path class="dash" d="M165 606 V640 H440 V666"/>
+  <path class="dash" d="M365 606 V626 H440 V666"/>
+  <path class="dash" d="M565 606 V640 H440 V666"/>
+  <path class="dash" d="M765 606 V626 H440 V666"/>
+
+  <!-- Workers to AI and durable stores. -->
+  <path class="edge" d="M165 798 V900 H185 V920"/>
+  <path class="edge" d="M365 798 V870 H790 V915"/>
+  <path class="edge" d="M565 798 V845 H1283 V915"/>
+  <path class="edge" d="M765 798 V820 H1108 V915"/>
+  <path class="edge" d="M565 813 V855 H245 V920"/>
+
+  <!-- Users -->
+  <rect class="group" x="770" y="24" width="760" height="112" rx="2"/>
+  <text class="group-title" x="1140" y="45" text-anchor="middle">Users</text>
+
+  <g transform="translate(800 60)">
+    <rect class="node" width="150" height="52" rx="14"/>
+    <circle class="icon-bg" cx="25" cy="26" r="16"/><text x="25" y="31" text-anchor="middle" font-size="17" fill="#1385bd">♙</text>
+    <text class="title" x="48" y="31">Patient Portal</text>
+  </g>
+  <g transform="translate(970 60)">
+    <rect class="node" width="170" height="52" rx="14"/>
+    <circle class="icon-bg" cx="25" cy="26" r="16"/><text x="25" y="31" text-anchor="middle" font-size="17" fill="#1385bd">⌖</text>
+    <text class="title" x="48" y="31">Dispatcher Portal</text>
+  </g>
+  <g transform="translate(1160 60)">
+    <rect class="node" width="150" height="52" rx="14"/>
+    <circle class="icon-bg" cx="25" cy="26" r="16"/><text x="25" y="31" text-anchor="middle" font-size="17" fill="#1385bd">✚</text>
+    <text class="title" x="48" y="31">Doctor Portal</text>
+  </g>
+  <g transform="translate(1340 60)">
+    <rect class="node" width="160" height="52" rx="14"/>
+    <circle class="icon-bg" cx="25" cy="26" r="16"/><text x="25" y="31" text-anchor="middle" font-size="17" fill="#1385bd">◉</text>
+    <text class="title" x="48" y="31">Command Center</text>
+  </g>
+
+  <!-- Application entry -->
+  <rect class="group" x="1305" y="170" width="210" height="205" rx="2"/>
+  <rect class="section-label-bg" x="1297" y="142" width="126" height="25" rx="4"/>
+  <text class="group-title" x="1305" y="160">Application entry</text>
+  <g transform="translate(1320 205)">
+    <rect class="node" width="180" height="60" rx="14"/>
+    <image href="assets/google-cloud/firebase-hosting.svg" x="12" y="10" width="40" height="40"/>
+    <text class="title" x="60" y="35">Firebase Hosting</text>
+  </g>
+  <g transform="translate(1330 292)">
+    <rect class="node" width="160" height="58" rx="14"/>
+    <image href="assets/google-cloud/api-gateway.svg" x="12" y="9" width="40" height="40"/>
+    <text class="title" x="60" y="34">API Gateway</text>
+  </g>
+
+  <!-- Direct browser-to-Gemini WebSocket label -->
+  <g transform="translate(1035 327)">
+    <rect class="label-bg" width="155" height="25" rx="12"/>
+    <text class="label" x="77.5" y="16" text-anchor="middle">Direct Gemini WebSocket</text>
+  </g>
+
+  <!-- Asynchronous event plane -->
+  <rect class="group" x="55" y="330" width="865" height="350" rx="2"/>
+  <text class="group-title" x="487" y="350" text-anchor="middle">Asynchronous event plane</text>
+
+  <g transform="translate(175 370)">
+    <rect class="node" width="180" height="52" rx="13"/>
+    <image href="assets/google-cloud/cloud-run.svg" x="10" y="8" width="34" height="34"/>
+    <text class="title" x="52" y="22">Outbox publisher</text>
+    <text class="status-ok" x="52" y="39">Deployed · publishing</text>
+  </g>
+  <g transform="translate(175 438)">
+    <rect class="node" width="160" height="57" rx="13"/>
+    <image href="assets/google-cloud/pubsub.svg" x="12" y="10" width="36" height="36"/>
+    <text class="title" x="57" y="25">Pub/Sub</text>
+    <text class="status-ok" x="57" y="42">Deployed · Singapore</text>
+  </g>
+
+  <g transform="translate(75 548)">
+    <rect class="node" width="180" height="58" rx="13"/>
+    <image href="assets/google-cloud/pubsub.svg" x="10" y="11" width="34" height="34"/>
+    <text class="title" x="52" y="23">Clinical subscription</text>
+    <text class="status-ok" x="52" y="41">Deployed · filtered</text>
+  </g>
+  <g transform="translate(275 548)">
+    <rect class="node" width="180" height="58" rx="13"/>
+    <image href="assets/google-cloud/pubsub.svg" x="10" y="11" width="34" height="34"/>
+    <text class="title" x="52" y="23">Notification</text>
+    <text class="status-ok" x="52" y="40">Deployed · filtered</text>
+  </g>
+  <g transform="translate(475 548)">
+    <rect class="node" width="180" height="58" rx="13"/>
+    <image href="assets/google-cloud/pubsub.svg" x="10" y="11" width="34" height="34"/>
+    <text class="title" x="52" y="23">Operations</text>
+    <text class="status-ok" x="52" y="40">Deployed · filtered</text>
+  </g>
+  <g transform="translate(675 548)">
+    <rect class="node" width="180" height="58" rx="13"/>
+    <image href="assets/google-cloud/pubsub.svg" x="10" y="11" width="34" height="34"/>
+    <text class="title" x="52" y="23">Audit subscription</text>
+    <text class="status-ok" x="52" y="40">Deployed · verified</text>
+  </g>
+
+  <g transform="translate(355 666)">
+    <rect class="node2" width="170" height="48" rx="13"/>
+    <image href="assets/google-cloud/pubsub.svg" x="11" y="8" width="31" height="31"/>
+    <text class="title" x="50" y="22">Dead-letter topic</text>
+    <text class="status-ok" x="50" y="37">Deployed · 5 attempts</text>
+  </g>
+
+  <g transform="translate(690 390)">
+    <rect class="node" width="190" height="62" rx="13"/>
+    <image href="assets/google-cloud/cloud-monitoring.svg" x="10" y="12" width="38" height="38"/>
+    <text class="title" x="56" y="24">Cloud Monitoring</text>
+    <text class="status-ok" x="56" y="41">Event alerts deployed</text>
+    <text class="tiny" x="56" y="55">Metrics + bounded logs</text>
+  </g>
+
+  <!-- Direct browser audio and authenticated application API -->
+  <rect class="group" x="1010" y="400" width="535" height="185" rx="2"/>
+  <text class="group-title" x="1277" y="420" text-anchor="middle">Live audio and application API</text>
+  <g transform="translate(1035 438)">
+    <rect class="node" width="200" height="55" rx="13"/>
+    <image href="../../../public/images/technology/gemini.png" x="10" y="9" width="38" height="38"/>
+    <text class="title" x="56" y="23">Direct Gemini Live</text>
+    <text class="small" x="56" y="39">Browser audio · API token</text>
+  </g>
+  <g transform="translate(1310 438)">
+    <rect class="node" width="205" height="55" rx="13"/>
+    <image href="assets/google-cloud/cloud-run.svg" x="10" y="9" width="38" height="38"/>
+    <text class="title" x="56" y="23">SmartCareOps API</text>
+    <text class="small" x="56" y="39">Cloud Run</text>
+  </g>
+  <g transform="translate(1040 515)">
+    <rect class="label-bg" width="190" height="43" rx="12"/>
+    <text class="label" x="95" y="18" text-anchor="middle">Real-time audio</text>
+    <text class="tiny" x="95" y="32" text-anchor="middle">direct, low latency</text>
+  </g>
+  <g transform="translate(1310 515)">
+    <rect class="label-bg" width="205" height="43" rx="12"/>
+    <text class="label" x="102.5" y="18" text-anchor="middle">Existing synchronous API</text>
+    <text class="tiny" x="102.5" y="32" text-anchor="middle">Case + capacity event source</text>
+  </g>
+
+  <g transform="translate(920 765)">
+    <rect class="label-bg" width="185" height="34" rx="10"/>
+    <text class="label" x="92.5" y="21" text-anchor="middle">Case + capacity events</text>
+  </g>
+
+  <!-- Independent workers -->
+  <rect class="group" x="55" y="720" width="865" height="115" rx="2"/>
+  <text class="group-title" x="487" y="740" text-anchor="middle">Independent workers</text>
+  <g transform="translate(75 755)">
+    <rect class="node" width="180" height="58" rx="13"/>
+    <image href="assets/google-cloud/cloud-run.svg" x="10" y="11" width="36" height="36"/>
+    <text class="title" x="54" y="23">Clinical analysis</text>
+    <text class="small" x="54" y="40">Gemini assessment</text>
+    <text class="status-ok" x="10" y="53">Doctor review gates action</text>
+  </g>
+  <g transform="translate(275 755)">
+    <rect class="node" width="180" height="58" rx="13"/>
+    <image href="assets/google-cloud/cloud-run.svg" x="10" y="11" width="36" height="36"/>
+    <text class="title" x="54" y="23">Notification worker</text>
+    <text class="small" x="54" y="40">Role-scoped notices</text>
+    <text class="status-ok" x="10" y="53">Doctor · Patient · Dispatcher</text>
+  </g>
+  <g transform="translate(475 755)">
+    <rect class="node" width="180" height="58" rx="13"/>
+    <image href="assets/google-cloud/cloud-run.svg" x="10" y="11" width="36" height="36"/>
+    <text class="title" x="54" y="23">Operations worker</text>
+    <text class="small" x="54" y="40">Projection + agentic plan</text>
+    <text class="status-ok" x="54" y="53">Capacity-triggered</text>
+  </g>
+  <g transform="translate(675 755)">
+    <rect class="node" width="180" height="58" rx="13"/>
+    <image href="assets/google-cloud/cloud-run.svg" x="10" y="11" width="36" height="36"/>
+    <text class="title" x="54" y="24">Audit receiver</text>
+    <text class="status-ok" x="54" y="41">Deployed · verified</text>
+  </g>
+
+  <!-- Google AI currently used by the application. Vertex AI is a separate future migration. -->
+  <rect class="group" x="55" y="875" width="500" height="145" rx="2"/>
+  <text class="group-title" x="305" y="895" text-anchor="middle">Google AI — current</text>
+  <g transform="translate(80 920)">
+    <rect class="node" width="210" height="70" rx="13"/>
+    <image href="../../../public/images/technology/gemini.png" x="13" y="13" width="44" height="44"/>
+    <text class="title" x="68" y="28">Gemini Developer API</text>
+    <text class="small" x="68" y="47">Gemini 3.6 Flash</text>
+    <text class="status-ok" x="68" y="62">Intake + clinical assessment</text>
+  </g>
+  <g transform="translate(315 920)">
+    <rect class="node" width="210" height="70" rx="13"/>
+    <image href="../../../public/images/technology/gemini.png" x="13" y="13" width="44" height="44"/>
+    <text class="title" x="68" y="28">Gemini Live API</text>
+    <text class="small" x="68" y="47">Gemini 3.8 Live</text>
+    <text class="status-ok" x="68" y="62">Current real-time audio</text>
+  </g>
+
+  <!-- Durable source of truth -->
+  <rect class="group" x="665" y="875" width="880" height="245" rx="2"/>
+  <text class="group-title" x="1105" y="895" text-anchor="middle">Durable source of truth</text>
+  <g transform="translate(675 915)">
+    <rect class="data" width="165" height="78" rx="13"/>
+    <image href="assets/google-cloud/firestore.svg" x="9" y="19" width="40" height="40"/>
+    <text class="title" x="55" y="29">Firestore</text>
+    <text class="small" x="55" y="46">Cases, workflow</text>
+    <text class="small" x="55" y="62">and clinical events</text>
+  </g>
+  <g transform="translate(850 915)">
+    <rect class="data" width="165" height="78" rx="13"/>
+    <image href="assets/google-cloud/firestore.svg" x="9" y="19" width="40" height="40"/>
+    <text class="title" x="55" y="29">Firestore outbox</text>
+    <text class="small" x="55" y="46">Transactional events</text>
+    <text class="status-ok" x="55" y="62">Case + capacity</text>
+  </g>
+  <g transform="translate(1025 915)">
+    <rect class="data" width="165" height="78" rx="13"/>
+    <image href="assets/google-cloud/firestore.svg" x="9" y="19" width="40" height="40"/>
+    <text class="title" x="55" y="29">eventAudit</text>
+    <text class="small" x="55" y="46">Idempotent receipts</text>
+    <text class="status-ok" x="55" y="62">Cloud verified</text>
+  </g>
+  <g transform="translate(1200 915)">
+    <rect class="data" width="165" height="78" rx="13"/>
+    <image href="assets/google-cloud/firestore.svg" x="9" y="19" width="40" height="40"/>
+    <text class="title" x="55" y="29">eventOperations</text>
+    <text class="small" x="55" y="46">Metadata projection</text>
+    <text class="status-ok" x="55" y="62">Cloud verified</text>
+  </g>
+  <g transform="translate(1375 915)">
+    <rect class="data" width="165" height="78" rx="13"/>
+    <image href="assets/google-cloud/cloud-storage.svg" x="9" y="19" width="40" height="40"/>
+    <text class="title" x="55" y="29">Cloud Storage</text>
+    <text class="small" x="55" y="47">Approved clinical</text>
+    <text class="small" x="55" y="63">images</text>
+  </g>
+  <g transform="translate(675 1015)">
+    <rect class="data" width="165" height="78" rx="13"/>
+    <image href="assets/google-cloud/firestore.svg" x="9" y="19" width="40" height="40"/>
+    <text class="title" x="55" y="29">eventClinical</text>
+    <text class="small" x="55" y="46">Event projection</text>
+    <text class="status-ok" x="55" y="62">Cloud verified</text>
+  </g>
+  <g transform="translate(850 1015)">
+    <rect class="data" width="165" height="78" rx="13"/>
+    <image href="assets/google-cloud/firestore.svg" x="9" y="19" width="40" height="40"/>
+    <text class="title" x="55" y="29">eventNotifications</text>
+    <text class="small" x="55" y="46">Event projection</text>
+    <text class="status-ok" x="55" y="62">Cloud verified</text>
+  </g>
+  <g transform="translate(1025 1015)">
+    <rect class="data" width="165" height="78" rx="13"/>
+    <image href="assets/google-cloud/firestore.svg" x="9" y="19" width="40" height="40"/>
+    <text class="title" x="55" y="29">Clinical workspace</text>
+    <text class="small" x="55" y="46">Doctor assessment</text>
+    <text class="status-ok" x="55" y="62">Review before action</text>
+  </g>
+  <g transform="translate(1200 1015)">
+    <rect class="data" width="165" height="78" rx="13"/>
+    <image href="assets/google-cloud/firestore.svg" x="9" y="19" width="40" height="40"/>
+    <text class="title" x="55" y="29">caseNotices</text>
+    <text class="small" x="55" y="46">In-app delivery</text>
+    <text class="status-ok" x="55" y="62">Role-scoped receipts</text>
+  </g>
+</svg>

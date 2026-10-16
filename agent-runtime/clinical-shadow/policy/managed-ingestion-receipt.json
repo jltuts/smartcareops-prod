@@ -1,0 +1,85 @@
+{
+  "schemaVersion": "1.0",
+  "status": "uploaded",
+  "project": "gen-lang-client-0710663107",
+  "location": "asia-southeast1",
+  "corpusResource": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952",
+  "corpusVersion": "m60-fictional-v1",
+  "manifestDigest": "831f6962ce002e0c5e6d5ea2303c469f80e188e3398fc2cd65207b25350f5356",
+  "modelArmorTemplate": "projects/gen-lang-client-0710663107/locations/asia-southeast1/templates/smartcareops-m60-admission",
+  "inspectedFileCount": 12,
+  "uploaded": [
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-EVIDENCE-01-01",
+      "fileDigest": "9f264e2427f866d48146ed50c3846de60383da02f46a53fb3af07a4d00887deb",
+      "ragFile": "projects/909914326545/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809818710324562704",
+      "displayName": "POLICY-SCO-DEMO-EVIDENCE-01-01"
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-EVIDENCE-01-02",
+      "fileDigest": "978a71782773b646d24d906a5fe286e19fc082e4ae3d92eae0bf8d5b6c84ff16",
+      "ragFile": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809820264642912905",
+      "displayName": "POLICY-SCO-DEMO-EVIDENCE-01-02"
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-EVIDENCE-01-03",
+      "fileDigest": "ac681240300c71fc0cc92a5dcf4aed69fb5773fa2c0d4684620c803372ed52a8",
+      "ragFile": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809820396138717084",
+      "displayName": "POLICY-SCO-DEMO-EVIDENCE-01-03"
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-LAB-02-01",
+      "fileDigest": "c9c06a74641bf9cf65e13202fd9242124380ac6c8992e66f61de248494c89d6d",
+      "ragFile": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809820510079980692",
+      "displayName": "POLICY-SCO-DEMO-LAB-02-01"
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-LAB-02-02",
+      "fileDigest": "4a0f97693f3a8e8000a179a2bf10d23ff507029fc02b8fba9647fcddbde3b115",
+      "ragFile": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809820623696951253",
+      "displayName": "POLICY-SCO-DEMO-LAB-02-02"
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-LAB-02-03",
+      "fileDigest": "5cdd96ec13cafa0f1a95d8f89f19c940ad38b9f7c3a178119ae479dae2a2efdd",
+      "ragFile": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809820715487719323",
+      "displayName": "POLICY-SCO-DEMO-LAB-02-03"
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-UNCERTAINTY-03-01",
+      "fileDigest": "55a76be9c083c487eb73020367bb25cedaea384940966b2a87e91bc1cc264117",
+      "ragFile": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809820808304205832",
+      "displayName": "POLICY-SCO-DEMO-UNCERTAINTY-03-01"
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-UNCERTAINTY-03-02",
+      "fileDigest": "735247ba93704fc70329c1deef858d70076e4b24ffd91e566e642699598b737e",
+      "ragFile": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809820914002501876",
+      "displayName": "POLICY-SCO-DEMO-UNCERTAINTY-03-02"
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-UNCERTAINTY-03-03",
+      "fileDigest": "660d43b9a7de2ea38489417babfbd0fe18b702c859a1fdb522dc1de2bebbdea2",
+      "ragFile": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809821046154613859",
+      "displayName": "POLICY-SCO-DEMO-UNCERTAINTY-03-03"
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-BOUNDARY-04-01",
+      "fileDigest": "2af70022654aedd1919af88ced3593866759017bd95abf7befcb3984e2a95c67",
+      "ragFile": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809821144755190262",
+      "displayName": "POLICY-SCO-DEMO-BOUNDARY-04-01"
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-BOUNDARY-04-02",
+      "fileDigest": "153f9237d54ac7f3c69e700b73d1c2cbd79d93d44bb796af99f2d059cf6a2f22",
+      "ragFile": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809821240239000662",
+      "displayName": "POLICY-SCO-DEMO-BOUNDARY-04-02"
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-BOUNDARY-04-03",
+      "fileDigest": "aabb242772ebe270437c5598f35871d70d60901e908f84561e23fa24363f2b1b",
+      "ragFile": "projects/gen-lang-client-0710663107/locations/asia-southeast1/ragCorpora/2305843009213693952/ragFiles/5809821373608794588",
+      "displayName": "POLICY-SCO-DEMO-BOUNDARY-04-03"
+    }
+  ]
+}

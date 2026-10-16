@@ -44,6 +44,16 @@ test('CareTwin forecasts are deterministic and expose only M15-produced operatio
   }
 });
 
+test('M16 CareTwin continues to consume the corrected scenario-aware M15 ICU trajectory', () => {
+  const surge = simulateCandidatePlans(createInitialSimulationState({ scenario: 'ed_surge', seed: 41 }));
+  const respiratory = simulateCandidatePlans(createInitialSimulationState({ scenario: 'respiratory_outbreak', seed: 41 }));
+  const expectedSurge = simulationMetrics(advanceSimulationState(createInitialSimulationState({ scenario: 'ed_surge', seed: 41 }), CARETWIN_HORIZON_TICKS));
+  assert.deepEqual(surge.plans[0].outcome, expectedSurge);
+  assert.ok(respiratory.plans[0].outcome.icu.occupied > surge.plans[0].outcome.icu.occupied);
+  assert.ok([...surge.plans, ...respiratory.plans].every(plan => plan.outcome.hospitals.every(hospital =>
+    hospital.icuOccupied >= 0 && hospital.icuOccupied <= hospital.icuEffectiveCapacity)));
+});
+
 test('Gemini comparison receives generated futures and returns validated Why, Why Not, and uncertainty only', async () => {
   let requestBody;
   const model = createCareTwinModel({ model: 'test-model', request: async input => {

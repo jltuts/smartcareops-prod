@@ -1,6 +1,6 @@
 import { GoogleGenAI } from '@google/genai';
 import { runGeminiRequest } from '../../../shared/gemini-resilience.mjs';
-import { resourceTools, resourceToolNames, validateArguments, check } from './contracts.js';
+import { hospitalIds, specialties, resourceTools, resourceToolNames, validateArguments, check } from './contracts.js';
 export const resourceArgumentsSchema = { type: 'object', additionalProperties: false, properties: Object.assign({}, ...Object.values(resourceTools).map(tool => tool.inputSchema.properties)) };
 // Named arrays bind each tool to its own argument schema without a provider union.
 // Empty arrays mean unselected tools; the normalized combined limit is still 12.
@@ -20,6 +20,26 @@ export function validateInvestigation(value) {
   }
   return structuredClone(value.requests);
 }
+export function baselineInvestigation(context = {}) {
+  const routedSpecialty = context.investigation?.read_case?.routing?.specialty;
+  const specialty = specialties.includes(routedSpecialty) ? routedSpecialty : 'general_medicine';
+  const availableHospitalIds = Array.isArray(context.availableHospitalIds)
+    ? context.availableHospitalIds.filter(id => hospitalIds.includes(id))
+    : [];
+  const primaryHospitalId = availableHospitalIds[0] || hospitalIds[0];
+  const alternativeHospitalId = availableHospitalIds.find(id => id !== primaryHospitalId) || hospitalIds[1];
+  return validateInvestigation({ requests: [
+    { toolName: 'get_patient_location_context', arguments: {} },
+    { toolName: 'find_nearby_hospitals', arguments: { requiredCapabilities: [specialty], maxResults: 3 } },
+    { toolName: 'get_hospital_capabilities', arguments: { hospitalId: primaryHospitalId } },
+    { toolName: 'get_hospital_capacity', arguments: { hospitalId: primaryHospitalId } },
+    { toolName: 'find_available_specialists', arguments: { hospitalId: primaryHospitalId, specialty } },
+    { toolName: 'get_hospital_capabilities', arguments: { hospitalId: alternativeHospitalId } },
+    { toolName: 'get_hospital_capacity', arguments: { hospitalId: alternativeHospitalId } },
+    { toolName: 'find_available_specialists', arguments: { hospitalId: alternativeHospitalId, specialty } },
+    { toolName: 'get_ambulance_availability', arguments: {} },
+  ] });
+}
 export function createResourceInvestigator({ model = process.env.GEMINI_CLINICAL_MODEL || 'gemini-3.6-flash', request } = {}) {
   return async (context, signal) => {
     const client = request ? null : new GoogleGenAI({ apiKey: process.env.GEMINI_API_KEY });
@@ -31,6 +51,7 @@ export function createResourceInvestigator({ model = process.env.GEMINI_CLINICAL
     }, { signal, maxRetries: 0 }), { signal, idempotent: true, maxRetries: 0, validate: response => {
       check(typeof response?.output_text === 'string' && response.output_text.length < 14000, 'INVALID_INVESTIGATION'); return normalizeInvestigation(JSON.parse(response.output_text));
     } });
+    if (!result.ok && result.error?.code === 'INVALID_RESPONSE') return baselineInvestigation(context);
     if (!result.ok) { const error = new Error('Resource investigation selection unavailable.'); error.safeModelError = result.error; throw error; }
     return result.value;
   };

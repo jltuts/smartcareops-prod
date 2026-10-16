@@ -24,3 +24,26 @@ test('interrupted fragments and other wording never end voice; canonical sentenc
   for (const text of ['We have finished.', 'Your intake is now complete.', 'Your intake is incomplete.']) assert.equal(voice.observe({ outputTranscription: { text }, turnComplete: true }), false);
   assert.equal(voice.observe({ outputTranscription: { text: 'Your intake is complete. Any questions?' }, turnComplete: true }), true);
 });
+
+test('authorized completion split across finalized transcript messages ends voice once', () => {
+  const events = [], voice = createVoiceState(event => events.push(event));
+  assert.equal(voice.observe({ outputTranscription: { text: 'Thank you, Louis. Your' }, turnComplete: true }, true), false);
+  assert.equal(voice.state, 'ACTIVE');
+  assert.equal(voice.observe({ outputTranscription: { text: 'intake is complete.' }, turnComplete: true }, true), true);
+  assert.equal(voice.state, 'ENDING');
+  assert.equal(voice.observe({ outputTranscription: { text: 'Is there anything else?' }, turnComplete: true }, true), false);
+  assert.deepEqual(events, [{ event: 'gemini_intake_complete', voiceState: 'ENDING' }]);
+});
+
+for (const sentence of ['Your intake is complete.', 'Your intake is complete!', 'Your intake is complete?', 'Your intake is complete', 'YOUR INTAKE IS COMPLETE']) {
+  test(`terminal phrase accepts punctuation variation: ${sentence}`, () => {
+    const events = [];
+    const voice = createVoiceState(event => events.push(event));
+    assert.equal(voice.observe({ outputTranscription: { text: sentence } }), false);
+    assert.equal(voice.state, 'ACTIVE');
+    assert.equal(voice.observe({ turnComplete: true }), true);
+    assert.equal(voice.state, 'ENDING');
+    assert.equal(voice.observe({ outputTranscription: { text: sentence }, turnComplete: true }), false);
+    assert.deepEqual(events, [{ event: 'gemini_intake_complete', voiceState: 'ENDING' }]);
+  });
+}

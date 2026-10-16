@@ -6,7 +6,7 @@ import { createResourceService } from '../src/resources/service.js';
 import { seedResources } from '../src/resources/fixtures.js';
 import { createMapsAdapter } from '../src/resources/maps/simulation.js';
 import { validateArguments, validateCatalog, validateResult, resourceTools } from '../src/resources/contracts.js';
-import { validateInvestigation, createResourceInvestigator, normalizeInvestigation } from '../src/resources/investigator.js';
+import { validateInvestigation, createResourceInvestigator, normalizeInvestigation, baselineInvestigation } from '../src/resources/investigator.js';
 import { createClinicalService } from '../src/clinical/service.js';
 import { policy } from '../src/clinical/contracts.js';
 import { queryTool } from '../src/clinical/tools.js';
@@ -14,6 +14,7 @@ const prepared = async options => { const f = await resourceFixture(options); aw
 const update = (f, requestId = 'capacityA') => f.service.changeCapacity({ requestId, hospitalId: 'HOSP-001', monitoredBedsAvailable: 0, expectedVersion: 1 });
 test('three fictional hospitals have narrow capacity, specialty and approximate location contracts', () => {
   const catalog = seedResources(); assert.equal(validateCatalog(catalog).hospitals.length, 3);
+  assert.equal(catalog.hospitals.find(hospital => hospital.hospitalId === 'HOSP-002').specialists.find(item => item.specialty === 'orthopedics').available, true);
   assert.equal(catalog.patientLocation.accuracyClass, 'approximate'); assert.equal(catalog.hospitals[0].capacity.monitoredBedsAvailable, 2);
   const bad = structuredClone(catalog); bad.hospitals[0].capacity.monitoredBedsAvailable = -1; assert.throws(() => validateCatalog(bad));
 });
@@ -156,7 +157,12 @@ test('named investigation arrays normalize typed calls and reject mixed or missi
   assert.equal((await investigator({})).length, 11);
   value.find_nearby_hospitals = [{ requiredCapabilities: ['pulmonology'], specialty: 'pulmonology' }];
   assert.throws(() => normalizeInvestigation(value));
-  await assert.rejects(investigator({}), error => error.safeModelError.code === 'INVALID_RESPONSE');
+  const fallback = await investigator({});
+  assert.deepEqual(fallback, baselineInvestigation());
+  assert.equal(fallback.every(request => resourceTools[request.toolName].permissionClass === 'READ_ONLY'), true);
+  const orthopedicFallback = baselineInvestigation({ investigation: { read_case: { routing: { specialty: 'orthopedics' } } } });
+  assert.equal(orthopedicFallback.find(request => request.toolName === 'find_nearby_hospitals').arguments.requiredCapabilities[0], 'orthopedics');
+  assert.equal(orthopedicFallback.filter(request => request.toolName === 'find_available_specialists').every(request => request.arguments.specialty === 'orthopedics'), true);
 });
 
 test('assessment receives persisted before/after resource change and completed action observation versions', async () => {

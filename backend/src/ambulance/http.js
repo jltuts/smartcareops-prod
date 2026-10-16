@@ -7,20 +7,20 @@ export function ambulanceEndpoint(store, origins) {
     try {
       let result;
       const assign = /^\/api\/cases\/([^/?]+)\/ambulance\/([^/?]+)\/assign$/.exec(request.url);
-      const dispatch = /^\/api\/cases\/([^/?]+)\/ambulance\/dispatch$/.exec(request.url);
+      const advance = /^\/api\/cases\/([^/?]+)\/ambulance\/(dispatch|arrive-pickup|start-transport|arrive-hospital|complete)$/.exec(request.url);
       if (request.method === 'GET' && request.url === '/api/ambulances') result = await store.listAmbulances();
-      else if (request.method === 'POST' && (assign || dispatch)) {
-        const caseId = (assign || dispatch)[1];
+      else if (request.method === 'POST' && (assign || advance)) {
+        const caseId = (assign || advance)[1];
         if (!validCaseId(caseId)) throw new CaseStoreError('INVALID_CASE_ID', 400);
         if (assign && !validUnitId(assign[2])) throw new CaseStoreError('INVALID_AMBULANCE_UNIT', 400);
-        if (!origins.includes(request.headers.origin) || request.headers['sec-fetch-site'] === 'cross-site') throw new CaseStoreError('ORIGIN_NOT_ALLOWED', 403);
+        if (typeof request.headers.origin !== 'string' || !origins.includes(request.headers.origin)) throw new CaseStoreError('ORIGIN_NOT_ALLOWED', 403);
         if (request.headers['content-type']?.split(';')[0].trim() !== 'application/json') throw new CaseStoreError('INVALID_AMBULANCE_REQUEST', 400);
         let body = '';
         for await (const chunk of request) { body += chunk.toString(); if (body.length > 1024) throw new CaseStoreError('INVALID_AMBULANCE_REQUEST', 400); }
         let value;
         try { value = JSON.parse(body); } catch { throw new CaseStoreError('INVALID_AMBULANCE_REQUEST', 400); }
         if (!value || typeof value !== 'object' || Array.isArray(value) || Object.keys(value).length) throw new CaseStoreError('INVALID_AMBULANCE_REQUEST', 400);
-        result = assign ? await store.assignAmbulance(caseId, assign[2]) : await store.dispatchAmbulance(caseId);
+        result = assign ? await store.assignAmbulance(caseId, assign[2]) : await store.advanceAmbulance(caseId, advance[2]);
       } else throw new CaseStoreError('INVALID_AMBULANCE_REQUEST', 400);
       response.writeHead(200); response.end(JSON.stringify(result));
     } catch (error) {

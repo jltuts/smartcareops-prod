@@ -1,31 +1,30 @@
-name: CI
+name: Verify source
 
 on:
   push:
-    branches: [ main ]
+    branches: [main]
   pull_request:
-    branches: [ main ]
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
 
 jobs:
-  build-and-test:
+  verify:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
         with:
-          node-version: 22
-
-      - name: Install root dependencies
-        run: npm ci
-
-      - name: Install backend dependencies
-        run: npm --prefix backend ci
-
-      - name: Run backend tests
-        run: npm --prefix backend test
-
-      - name: Build frontend
-        run: npm run build
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 24
+      - run: npm ci
+      - run: npm --prefix backend ci
+      - run: npm --prefix agent-runtime/clinical-shadow ci
+      - run: npm run build
+      - run: npm --prefix backend test
+      - run: npm --prefix agent-runtime/clinical-shadow test
+      - run: node --test tests/maps-build-config.test.js

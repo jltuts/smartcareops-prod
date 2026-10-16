@@ -14,3 +14,41 @@ resource "google_firestore_database" "existing" {
     prevent_destroy = true
   }
 }
+
+resource "google_firestore_index" "patient_cases_newest_first" {
+  project    = var.project_id
+  database   = google_firestore_database.existing.name
+  collection = "cases"
+
+  fields {
+    field_path = "patientUid"
+    order      = "ASCENDING"
+  }
+  fields {
+    field_path = "createdAt"
+    order      = "DESCENDING"
+  }
+  fields {
+    field_path = "__name__"
+    order      = "DESCENDING"
+  }
+}
+
+resource "google_firestore_index" "dispatcher_cases_newest_first" {
+  project    = var.project_id
+  database   = google_firestore_database.existing.name
+  collection = "cases"
+
+  fields {
+    field_path = "workflowStatus"
+    order      = "ASCENDING"
+  }
+  fields {
+    field_path = "createdAt"
+    order      = "DESCENDING"
+  }
+  fields {
+    field_path = "__name__"
+    order      = "DESCENDING"
+  }
+}

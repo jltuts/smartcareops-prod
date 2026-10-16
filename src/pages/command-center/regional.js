@@ -14,7 +14,7 @@ export function mountRegional(root) {
   const panel = title => { const el = node('article', '', content); el.className = 'ops-panel'; node('h3', title, el); return el; };
   async function request(path = '', body) {
     const response = await apiFetch('/api/regional' + path, { signal: controller.signal, cache: 'no-store', ...(body ? { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}) });
-    if (!response.ok) throw new Error('Regional intelligence unavailable or the action is stale. Refresh to review evidence.'); return response.json();
+    if (!response.ok) throw new Error('Regional view could not be refreshed, or the action is out of date.'); return response.json();
   }
   function render() {
     content.replaceChildren(); const snap = view.currentSnapshot, plan = view.plans.find(item => item.revisionId === view.meta.currentRevisionId);
@@ -66,10 +66,17 @@ export function mountRegional(root) {
     const runs = panel('Regional agent runs'); for (const item of view.runs) node('p', `${item.runId} · ${item.status} · Snapshot ${item.snapshotVersion}`, runs);
     run.disabled = busy || !snap?.complete; capacity.disabled = busy || !snap?.complete || snap.hospitals.find(item => item.hospitalId === 'HOSP-003').capacity.monitoredBedsAvailable === 0;
   }
-  async function refresh() { try { view = await request(); if (controller.signal.aborted) return; render(); message.textContent = view.meta.lastError ? 'Regional assessment unavailable. Previous plans are retained; dependent actions are blocked.' : view.meta.ready ? 'Current regional assessment available.' : 'Waiting for current regional evidence and assessment.'; } catch (error) { if (!controller.signal.aborted) { message.textContent = error.message; run.disabled = true; capacity.disabled = true; } } }
+  let timer;
+  async function refresh() { try { view = await request(); if (controller.signal.aborted) return; render(); message.textContent = view.meta.lastError ? 'Regional assessment needs review. Previous plans are retained; dependent actions are blocked.' : view.meta.ready ? 'Current regional assessment available.' : 'Waiting for current regional evidence and assessment.'; } catch { if (!controller.signal.aborted) { message.textContent = 'This supporting regional view is not included in the current demo configuration.'; run.disabled = true; capacity.disabled = true; if (timer) { clearInterval(timer); timer = undefined; } } } }
   async function mutate(path, body) { if (busy) return; busy = true; render(); try { await request(path, body); await refresh(); } catch (error) { if (!controller.signal.aborted) message.textContent = error.message; } finally { busy = false; if (!controller.signal.aborted && view) render(); } }
   section.querySelector('#regional-refresh').addEventListener('click', refresh);
   run.addEventListener('click', () => void mutate('/run', { requestId: crypto.randomUUID() }));
   capacity.addEventListener('click', () => void mutate('/capacity', { requestId: crypto.randomUUID(), hospitalId: 'HOSP-003', monitoredBedsAvailable: 0, expectedVersion: Number(view.currentSnapshot.resourceVersion.split(':')[1]) }));
-  void refresh(); const timer = setInterval(refresh, 5000); return () => { controller.abort(); clearInterval(timer); };
+  const drawer = section.closest('details');
+  const onDrawerToggle = () => {
+    if (drawer.open && !timer) { void refresh(); timer = setInterval(refresh, 5000); }
+    else if (!drawer.open && timer) { clearInterval(timer); timer = undefined; }
+  };
+  drawer.addEventListener('toggle', onDrawerToggle);
+  return () => { controller.abort(); if (timer) clearInterval(timer); drawer.removeEventListener('toggle', onDrawerToggle); };
 }

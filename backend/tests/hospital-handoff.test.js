@@ -44,7 +44,18 @@ test('clinical agent proposes; pending and rejected external handoff cannot exec
   const f = await fixture(), id = await propose(f);
   await assert.rejects(f.service.execute(id), { code: 'APPROVAL_REQUIRED' });
   await f.service.decide(id, 'rejected'); await f.service.tick();
+  const patientCase = await f.caseStore.getCase(f.caseId);
+  assert.equal(patientCase.clinicalReview, null);
+  assert.equal(patientCase.workflowStatus, 'submitted_for_clinical_review');
   await assert.rejects(f.service.execute(id), { code: 'APPROVAL_REQUIRED' }); assert.equal(f.calls(), 0);
+});
+test('action-specific Doctor approval stays separate from case review status and handoff', async () => {
+  const f = await fixture(), id = await propose(f);
+  await f.service.decide(id, 'approved');
+  const patientCase = await f.caseStore.getCase(f.caseId);
+  assert.equal(patientCase.clinicalReview, null);
+  assert.equal(patientCase.workflowStatus, 'submitted_for_clinical_review');
+  assert.deepEqual(patientCase.hospitalHandoffs, []);
 });
 test('doctor approval executes REST by default exactly once across concurrent calls, restart and replan', async () => {
   const f = await fixture(), id = await propose(f);

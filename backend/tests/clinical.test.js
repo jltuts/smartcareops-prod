@@ -10,8 +10,33 @@ import { newCaseId } from '../src/cases/store.js';
 import { createMemoryCaseStore } from '../src/cases/store.js';
 import { memoryClinicalStore } from '../src/clinical/storage.js';
 import { routingIntake } from './routing-fixtures.js';
+import { specialtyCodes } from '../../shared/routing.js';
+import { createManagedClinicalModel, managedClinicalIntegrationVersion } from '../src/agent-platform/clinical-managed-client.js';
+import { createClinicalModelCutover } from '../src/agent-platform/clinical-cutover.js';
 
 const proposal = async f => { await f.service.append(observationSet()); await f.service.tick(); return f.service.view(); };
+test('event-driven intake requires a recorded Doctor case review before action approval', async () => {
+  const caseId = newCaseId(), caseStore = createMemoryCaseStore({ chatSourceMarkerEnabled: true }), store = memoryClinicalStore();
+  await caseStore.createCase({ caseId, intake: routingIntake(), intakeSource: 'chat_intake',
+    submittedForReview: true, fictionalConfirmed: true });
+  await caseStore.routeCase(caseId, { availableSpecialties: new Set(specialtyCodes) });
+  const service = createClinicalService({ caseId, caseStore, store, model: async context => {
+    const value = assessment(context);
+    value.hypotheses[0].evidenceRefs = ['case'];
+    value.recommendedActions = value.recommendedActions.filter(item => item.toolName !== 'read_fictional_patient_history');
+    return value;
+  },
+    requireCaseReviewForActions: true });
+  await service.append(observationSet()); await service.tick();
+  const plan = await service.view(), approvalId = plan.approvals[0].approvalId;
+  assert.equal(plan.reviewGateEnabled, true);
+  await assert.rejects(service.decide(approvalId, 'approved'), { code: 'CLINICAL_REVIEW_REQUIRED' });
+  await assert.rejects(service.execute(approvalId), { code: 'CLINICAL_REVIEW_REQUIRED' });
+  assert.equal((await service.view()).receipts.length, 0);
+  await caseStore.decideClinicalReview(caseId, { requestId: '11111111-1111-4111-8111-111111111111',
+    decision: 'approved', reviewerId: 'doctor-test' });
+  assert.equal((await service.decide(approvalId, 'approved')).status, 'approved');
+});
 test('observations and event persist together, provenance is explicit, original M2 snapshot unchanged', async () => {
   const f = await fixture(), before = await f.caseStore.getCase(f.caseId);
   await f.service.append(observationSet()); const data = await f.service.view();
@@ -35,10 +60,33 @@ test('corrections append and preserve original, invalid cross-type correction re
 test('bounded run investigates, validates structured plan, backend overrides model risk, journals automatic reads', async () => {
   const f = await fixture(), data = await proposal(f);
   assert.equal(data.runs[0].status, 'completed'); assert.equal(data.runs[0].toolExecutionIds.length, 4);
+  assert.equal(data.runs[0].model, 'gemini-api'); assert.equal(data.plans[0].assessmentSource, 'gemini-api');
   const actions = data.plans[0].recommendedActions;
   assert.equal(actions[0].effectiveRisk, 'READ_ONLY'); assert.equal(actions[0].status, 'succeeded');
   assert.equal(actions[1].effectiveRisk, 'HIGH_IMPACT'); assert.equal(actions[1].status, 'pending');
   assert.equal(data.receipts.length, 0); assert.equal(data.monitoring.status, 'active');
+});
+test('managed review preserves validated policy evidence through application plan validation', async () => {
+  const f = await fixture(), policyRef = 'POLICY-SCO-DEMO-BOUNDARY-04-03';
+  const managedModel = createManagedClinicalModel({ policyVersion: 'm60-fictional-v1', policyManifestDigest: 'a'.repeat(64),
+    invokeRuntime: async input => {
+      const value = assessment({ evidenceRefs: input.evidence.evidenceRefs });
+      value.hypotheses[0].evidenceRefs = [policyRef];
+      return { integrationVersion: managedClinicalIntegrationVersion, requestId: input.binding.requestId,
+        evidenceDigest: input.binding.evidenceDigest, publishable: false, status: 'shadow_validated',
+        evidenceRefs: [...input.evidence.evidenceRefs, policyRef], toolCalls: ['get_case_evidence', 'retrieve_approved_policy'], assessment: value };
+    } });
+  const model = createClinicalModelCutover({ currentModel: async context => assessment(context), managedModel,
+    env: { M60_CLINICAL_AGENT_MODE: 'review', M60_GATE_C_ACCEPTED: 'true', M60_GATE_D_ACCEPTED: 'true', M60_REVIEW_CUTOVER_APPROVED: 'true',
+      M60_SHADOW_CASE_IDS: f.caseId, M60_SHADOW_START_AT: '2026-10-16T07:00:00Z', M60_SHADOW_END_AT: '2026-10-16T08:00:00Z' },
+    now: () => Date.parse('2026-10-16T07:30:00Z') });
+  const service = createClinicalService({ ...f, model });
+  await service.append(observationSet()); await service.tick();
+  const data = await service.view();
+  assert.equal(data.runs[0].status, 'completed');
+  assert.equal(data.runs[0].model, 'gemini-enterprise-agent-platform');
+  assert.equal(data.plans[0].assessmentSource, 'gemini-enterprise-agent-platform');
+  assert.equal(data.plans[0].evidenceRefs.includes(policyRef), true);
 });
 test('structured assessment rejects raw reasoning, unsupported evidence, unknown tools and oversized output', () => {
   const context = { evidenceRefs: ['case', 'history', 'obs'] }, output = assessment(context);
@@ -158,16 +206,21 @@ test('Gemini boundary classifies safely without raw error disclosure or fabricat
   }
 });
 
-test('incomplete Gemini assessment cannot publish even parseable JSON; M9 thinking stays within the existing cap', async () => {
+test('incomplete Gemini assessment gets one bounded structured recovery; M9 thinking stays within the existing cap', async () => {
   const context = { evidenceRefs: ['case', 'history'], resourceInvestigation: [] }, output = assessment(context);
   let calls = 0;
   const model = createClinicalModel({ request: async request => {
     calls++;
-    assert.deepEqual(request.generation_config, { max_output_tokens: 4096, thinking_level: 'low', thinking_summaries: 'none' });
+    assert.deepEqual(request.generation_config, calls === 1
+      ? { max_output_tokens: 4096, thinking_level: 'low', thinking_summaries: 'none' }
+      : { max_output_tokens: 8192, thinking_level: 'low', thinking_summaries: 'none' });
     assert.equal(request.store, false);
-    return { status: 'incomplete', output_text: JSON.stringify(output) };
+    return { status: calls === 1 ? 'incomplete' : 'completed', output_text: JSON.stringify(output) };
   } });
-  await assert.rejects(model(context), error => error.safeModelError.code === 'INVALID_RESPONSE'); assert.equal(calls, 1);
+  assert.deepEqual(await model(context), output); assert.equal(calls, 2);
+  let invalidCalls = 0;
+  const incomplete = createClinicalModel({ request: async () => { invalidCalls++; return { status: 'incomplete', output_text: JSON.stringify(output) }; } });
+  await assert.rejects(incomplete(context), error => error.safeModelError.code === 'INVALID_RESPONSE'); assert.equal(invalidCalls, 2);
   const complete = createClinicalModel({ request: async request => {
     assert.deepEqual(request.generation_config, { max_output_tokens: 4096 });
     return { status: 'completed', output_text: JSON.stringify(output) };

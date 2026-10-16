@@ -1,0 +1,77 @@
+.technology-page { min-height: 100vh; background: #f7fbff; color: #12344d; }
+.technology-content { width: min(1280px, calc(100% - 48px)); margin-inline: auto; padding: clamp(68px, 8vw, 110px) 0 60px; }
+.technology-hero { display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(290px, .65fr); align-items: center; gap: clamp(40px, 6vw, 86px); margin-bottom: clamp(48px, 6vw, 78px); }
+.technology-hero h1 { max-width: 780px; margin: 0 0 22px; color: #0d3249; font-size: clamp(3rem, 5.7vw, 5.5rem); line-height: 1.04; letter-spacing: -.04em; text-wrap: balance; }
+.technology-hero > div > p { max-width: 65ch; margin: 0; color: #527483; font-size: clamp(1rem, 1.45vw, 1.17rem); line-height: 1.65; }
+.technology-hero-links { display: grid; padding: 12px 24px; border-radius: 16px; background: #0d3249; box-shadow: 0 22px 46px rgb(20 70 91 / 16%); }
+.technology-hero-links a { display: flex; align-items: center; justify-content: space-between; gap: 15px; min-height: 56px; padding: 11px 0; border-bottom: 1px solid rgb(220 242 243 / 22%); color: #fff; font-size: 15px; font-weight: 750; text-decoration: none; }
+.technology-hero-links a:last-child { border-bottom: 0; }
+.technology-hero-links a:hover { color: #9ce0d8; }
+.technology-hero-links span { color: #9ce0d8; font-size: 18px; }
+.technology-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
+.technology-group { min-width: 0; padding: clamp(20px, 2.6vw, 30px); border: 1px solid #cfe3e9; border-radius: 16px; background: #fff; scroll-margin-top: 110px; }
+.technology-group:first-child, .technology-group:last-child { grid-column: 1 / -1; }
+#managed-agent-governance, #smartcareops-capabilities { grid-column: 1 / -1; }
+.technology-group-header { display: flex; align-items: center; gap: 15px; margin-bottom: 22px; }
+.technology-group-header h2 { margin: 0; color: #0d3249; font-size: clamp(1.6rem, 2.5vw, 2.2rem); letter-spacing: -.035em; }
+.technology-group-header p { margin: 5px 0 0; color: #527483; font-size: 13px; line-height: 1.5; }
+.technology-cards { display: grid; gap: 12px; }
+.technology-group:first-child .technology-cards, .technology-group:last-child .technology-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+#managed-agent-governance .technology-cards { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.technology-card { display: grid; grid-template-columns: 50px minmax(0, 1fr); gap: 15px; align-items: start; min-width: 0; padding: 17px; border-radius: 12px; background: #f2f8fa; }
+.technology-group:first-child .technology-card { background: #edf5fb; }
+.technology-icon { position: relative; display: grid; place-items: center; width: 50px; height: 50px; padding: 8px; border-radius: 11px; background: #fff; }
+.technology-icon img { display: block; width: 100%; height: 100%; object-fit: contain; }
+.technology-group-header > .technology-icon { width: 48px; height: 48px; flex: 0 0 48px; padding: 5px; }
+.technology-icon-live img { width: 30px; height: 30px; margin-right: 10px; }
+.technology-icon-live i { position: absolute; bottom: 15px; width: 2px; border-radius: 2px; background: #168cdd; }
+.technology-icon-live i:nth-of-type(1) { right: 13px; height: 10px; }.technology-icon-live i:nth-of-type(2) { right: 8px; height: 16px; }.technology-icon-live i:nth-of-type(3) { right: 3px; height: 7px; }
+.technology-icon-event::before { position: absolute; top: 24px; left: 14px; width: 22px; border-top: 2px solid #167e89; content: ""; }
+.technology-icon-event i { position: absolute; width: 9px; height: 9px; border-radius: 50%; background: #0e588c; }
+.technology-icon-event i:nth-child(1) { top: 10px; left: 20px; }.technology-icon-event i:nth-child(2) { top: 29px; left: 9px; }.technology-icon-event i:nth-child(3) { top: 29px; right: 9px; }
+.technology-card h3 { margin: 1px 0 7px; color: #123f57; font-size: 18px; letter-spacing: -.02em; }
+.technology-card p { max-width: 60ch; margin: 0; color: #527483; font-size: 13px; line-height: 1.55; }
+.technology-models { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 11px; }
+.technology-models span { padding: 4px 8px; border: 1px solid #d7e1da; border-radius: 999px; background: #fff; color: #0e588c; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: .75rem; font-weight: 700; line-height: 1.2; }
+.technology-status { display: inline-flex; align-items: center; min-height: 23px; margin: 0 0 8px; padding: 3px 9px; border: 1px solid #d7e1da; border-radius: 999px; background: #f0f6f3; color: #177f74; font-size: .75rem; font-weight: 760; letter-spacing: .1em; line-height: 1.2; text-transform: uppercase; }
+.technology-status + h3 { margin-top: 0; }
+.technology-stack { display: grid; grid-template-columns: minmax(230px, .65fr) minmax(0, 1.35fr); gap: clamp(30px, 5vw, 70px); margin-top: clamp(60px, 8vw, 100px); padding: clamp(30px, 4vw, 50px); border-radius: 16px; background: #0d3249; color: #fff; scroll-margin-top: 110px; }
+.technology-stack h2 { margin: 0 0 14px; color: #fff; font-size: clamp(2rem, 3.4vw, 3rem); letter-spacing: -.035em; }
+.technology-stack-intro p { max-width: 44ch; margin: 0; color: #c6dee4; font-size: 14px; line-height: 1.6; }
+.technology-stack dl { margin: 0; }
+.technology-stack dl > div { display: grid; grid-template-columns: minmax(125px, .36fr) minmax(0, 1fr); gap: 18px; padding: 15px 0; border-top: 1px solid rgb(215 240 242 / 22%); }
+.technology-stack dt { color: #9ce0d8; font-size: 14px; font-weight: 780; }
+.technology-stack dd { margin: 0; color: #e0eef0; font-size: 13px; line-height: 1.55; }
+.technology-boundaries { margin: 25px auto 0; max-width: 900px; color: #466a79; font-size: 13px; line-height: 1.6; text-align: center; }
+.technology-boundaries a { color: #0e588c; font-weight: 750; text-underline-offset: 3px; }
+.technology-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; margin-top: 24px; }
+.technology-actions .landing-button { min-width: 190px; }
+.technology-manual-link { border: 1px solid #a9cbd0; background: #fff; color: #0e588c; }
+.technology-manual-link:hover { border-color: #167e89; color: #126b77; }
+@media (max-width: 900px) {
+  .technology-hero { grid-template-columns: 1fr; }
+  .technology-hero-links { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 22px; }
+  .technology-hero-links a:nth-last-child(2) { border-bottom: 0; }
+  .technology-groups { grid-template-columns: 1fr; }
+  .technology-group:first-child, .technology-group:last-child, #managed-agent-governance, #smartcareops-capabilities { grid-column: auto; }
+  .technology-group .technology-cards, .technology-group:first-child .technology-cards, .technology-group:last-child .technology-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  #managed-agent-governance .technology-cards { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .technology-stack { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .technology-content { width: calc(100% - 32px); padding: 74px 0 44px; }
+  .technology-hero { gap: 28px; margin-bottom: 44px; }
+  .technology-hero h1 { font-size: clamp(2.55rem, 11vw, 3.8rem); }
+  .technology-hero-links { grid-template-columns: 1fr; padding: 9px 19px; }
+  .technology-hero-links a:nth-last-child(2) { border-bottom: 1px solid rgb(220 242 243 / 22%); }
+  .technology-group { padding: 18px; }
+  .technology-group .technology-cards, .technology-group:first-child .technology-cards, .technology-group:last-child .technology-cards { grid-template-columns: 1fr; }
+  #managed-agent-governance .technology-cards { grid-template-columns: 1fr; }
+  .technology-card { grid-template-columns: 44px minmax(0, 1fr); gap: 12px; padding: 14px; }
+  .technology-icon { width: 44px; height: 44px; }
+  .technology-stack { gap: 24px; padding: 26px 20px; }
+  .technology-stack dl > div { grid-template-columns: 1fr; gap: 5px; }
+  .technology-actions { flex-direction: column; }
+  .technology-actions .landing-button { width: 100%; }
+}
+@media (prefers-reduced-motion: reduce) { .technology-page *, .technology-page *::before, .technology-page *::after { scroll-behavior: auto !important; transition: none !important; animation: none !important; } }

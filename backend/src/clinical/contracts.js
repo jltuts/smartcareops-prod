@@ -9,6 +9,13 @@ export class ClinicalError extends Error {
 export const requireThat = (condition, code = 'INVALID_CLINICAL_REQUEST', status = 400) => { if (!condition) throw new ClinicalError(code, status); };
 export const exact = (value, keys) => requireThat(value && typeof value === 'object' && !Array.isArray(value) && Object.keys(value).every(key => keys.includes(key)) && keys.every(key => Object.hasOwn(value, key)));
 export const digest = value => createHash('sha256').update(JSON.stringify(value)).digest('hex');
+const canonicalValue = value => {
+  if (Array.isArray(value)) return value.map(canonicalValue);
+  if (value && typeof value === 'object') return Object.fromEntries(Object.keys(value).sort()
+    .filter(key => value[key] !== undefined).map(key => [key, canonicalValue(value[key])]));
+  return value;
+};
+export const canonicalDigest = value => createHash('sha256').update(JSON.stringify(canonicalValue(value))).digest('hex');
 export const textValue = (value, max = 600) => typeof value === 'string' && value.trim().length > 0 && value.length <= max;
 export const token = value => typeof value === 'string' && /^[a-zA-Z0-9_-]{1,80}$/.test(value);
 export const scope = Object.freeze({ simulation: true, hospitalId: 'fictional-hospital-m8' });

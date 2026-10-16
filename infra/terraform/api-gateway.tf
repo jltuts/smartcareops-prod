@@ -22,12 +22,14 @@ resource "google_api_gateway_api_config" "health" {
     document {
       path = "openapi.yaml"
       contents = base64encode(templatefile("${path.module}/openapi.yaml.tftpl", {
-        backend_url        = google_cloud_run_v2_service.api[0].uri
-        enable_auth_routes = var.enable_firebase_auth_routes
-        enable_hosted_live = false
-        enable_m15         = var.enable_m15
-        enable_m16         = var.enable_m16
-        enable_m17         = var.enable_m17
+        backend_url               = google_cloud_run_v2_service.api[0].uri
+        enable_auth_routes        = var.enable_firebase_auth_routes
+        enable_hosted_live        = false
+        enable_m15                = var.enable_m15
+        enable_m16                = var.enable_m16
+        enable_m17                = var.enable_m17
+        enable_m18                = var.enable_m18
+        enable_m43_gateway_routes = var.enable_m43_gateway_routes
         }
       ))
     }
@@ -55,12 +57,14 @@ resource "google_api_gateway_api_config" "live" {
     document {
       path = "openapi.yaml"
       contents = base64encode(templatefile("${path.module}/openapi.yaml.tftpl", {
-        backend_url        = google_cloud_run_v2_service.api[0].uri
-        enable_auth_routes = var.enable_firebase_auth_routes
-        enable_hosted_live = true
-        enable_m15         = var.enable_m15
-        enable_m16         = var.enable_m16
-        enable_m17         = var.enable_m17
+        backend_url               = google_cloud_run_v2_service.api[0].uri
+        enable_auth_routes        = var.enable_firebase_auth_routes
+        enable_hosted_live        = true
+        enable_m15                = var.enable_m15
+        enable_m16                = var.enable_m16
+        enable_m17                = var.enable_m17
+        enable_m18                = var.enable_m18
+        enable_m43_gateway_routes = var.enable_m43_gateway_routes
         }
       ))
     }

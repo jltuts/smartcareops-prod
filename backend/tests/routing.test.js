@@ -5,14 +5,32 @@ import { createServer } from 'node:http';
 import { randomUUID } from 'node:crypto';
 import { routingIntake, routingFirestoreMock } from './routing-fixtures.js';
 import { emergencyIntake } from './safety-fixtures.js';
-import { evaluateRouting, validRouting, factsFingerprint } from '../src/cases/routing.js';
+import { evaluateRouting, resolveRouting, validRouting, factsFingerprint } from '../src/cases/routing.js';
 import { createFirestoreCaseStore } from '../src/cases/firestore.js';
 import { createMemoryCaseStore, newCaseId, Workflow, Handoff } from '../src/cases/store.js';
 import { routingEndpoint } from '../src/cases/routing-http.js';
 
-for (const [symptom, specialty] of [['dizziness', 'neurology'], ['chest pain', 'cardiology'], ['difficulty breathing', 'pulmonology'], ['high blood sugar', 'endocrinology'], ['fatigue', 'general_medicine']]) {
+for (const [symptom, specialty] of [['dizziness', 'neurology'], ['chest pain', 'cardiology'], ['difficulty breathing', 'pulmonology'], ['high blood sugar', 'endocrinology'], ['left shoulder pain', 'orthopedics'], ['I feel pain on my shoulders', 'orthopedics'], ['fatigue', 'general_medicine']]) {
   test(`routing demo: ${symptom} → ${specialty}`, () => assert.equal(evaluateRouting(routingIntake([[symptom, 'confirmed']])).specialty, specialty));
 }
+test('routing is driven by confirmed patient-reported symptoms, not visual evidence', () => {
+  const visualOnly = routingIntake([]);
+  visualOnly.patientEvidence = [{ kind: 'body_area', patientDescription: 'I point to my left shoulder.' }];
+  assert.equal(evaluateRouting(visualOnly).specialty, 'general_medicine');
+  assert.equal(evaluateRouting(routingIntake([['left shoulder pain', 'unclear']])).specialty, 'general_medicine');
+  assert.equal(evaluateRouting(routingIntake([['left shoulder pain', 'denied']])).specialty, 'general_medicine');
+  assert.equal(evaluateRouting(routingIntake([['sore throat', 'confirmed']])).specialty, 'general_medicine');
+  const diagnosisLabelOnly = routingIntake([['rotator-cuff tear', 'confirmed']]);
+  diagnosisLabelOnly.symptoms[0].canonicalConcept = 'shoulder pain';
+  assert.equal(evaluateRouting(diagnosisLabelOnly).specialty, 'general_medicine');
+});
+test('Orthopedics availability uses the verified queue or reports an honest safe fallback', () => {
+  const shoulder = routingIntake([['left shoulder pain', 'confirmed']]);
+  assert.deepEqual(resolveRouting(shoulder, new Set(['orthopedics'])), { status: 'routed', specialty: 'orthopedics', reasonCode: 'musculoskeletal_complaint', reasonSummary: 'Patient reported a supported musculoskeletal pain or injury complaint.' });
+  assert.deepEqual(resolveRouting(shoulder, new Set(['general_medicine'])), { status: 'routed', specialty: 'general_medicine', reasonCode: 'general_medicine_fallback', reasonSummary: 'No verified Orthopedics Doctor is available; routed to the verified Family Medicine queue.' });
+  assert.deepEqual(resolveRouting(shoulder, new Set()), { status: 'unassigned', specialty: 'orthopedics', reasonCode: 'specialty_unavailable', reasonSummary: 'No verified Orthopedics Doctor is available; this case remains unassigned.' });
+  assert.equal(resolveRouting(shoulder).status, 'unassigned');
+});
 test('priority selects stronger domain, ignoring denied, uncertain and unsupported facts', () => {
   const facts = routingIntake([['dizziness', 'confirmed'], ['chest pain', 'denied'], ['difficulty breathing', 'unclear']]);
   assert.equal(evaluateRouting(facts).specialty, 'neurology');
@@ -35,6 +53,44 @@ test('specialty and safe reason allowlists reject unknown assignments and free-f
   assert.ok(validRouting(valid));
   for (const change of [{ specialty: 'surgery' }, { reasonSummary: 'raw provider output' }, { reasonCode: 'diagnosis' }, { routedAt: 'not a date' }]) assert.equal(validRouting({ ...valid, ...change }), false);
 });
+test('case queue, detail, and clinical authorization are restricted to the routed Doctor specialty', async () => {
+  const store = createMemoryCaseStore(), orthoId = newCaseId(), neuroId = newCaseId();
+  await store.createCase({ caseId: orthoId, intake: routingIntake([['left shoulder pain', 'confirmed']]), submittedForReview: true });
+  await store.createCase({ caseId: neuroId, intake: routingIntake([['dizziness', 'confirmed']]), submittedForReview: true });
+  await store.routeCase(orthoId, { availableSpecialties: new Set(['orthopedics']) });
+  await store.routeCase(neuroId, { availableSpecialties: new Set(['neurology']) });
+  assert.deepEqual((await store.listDoctorCases({ specialty: 'orthopedics' })).cases.map(item => item.caseId), [orthoId]);
+  assert.deepEqual((await store.listDoctorCases({ specialty: 'neurology' })).cases.map(item => item.caseId), [neuroId]);
+  assert.deepEqual((await store.listDoctorCases({ specialties: ['orthopedics', 'neurology'] })).cases.map(item => item.caseId).sort(), [neuroId, orthoId].sort());
+  assert.equal(await store.isDoctorCaseAllowed(orthoId, 'orthopedics'), true);
+  assert.equal(await store.isDoctorCaseAllowed(neuroId, ['orthopedics', 'neurology']), true);
+  assert.equal(await store.isDoctorCaseAllowed(orthoId, 'neurology'), false);
+  await assert.rejects(store.getDoctorCase(orthoId, { specialty: 'neurology' }), error => error.status === 404);
+  const publicSummary = (await store.listPatientCases({ patientUid: 'patient-owner' })).cases;
+  assert.deepEqual(publicSummary, []);
+});
+test('no verified Orthopedics or General doctor leaves the case unassigned and patient-safe', async () => {
+  const store = createMemoryCaseStore(), id = newCaseId();
+  await store.createCase({ caseId: id, intake: routingIntake([['shoulder pain', 'confirmed']]), patientUid: 'patient-owner', submittedForReview: true });
+  const result = await store.routeCase(id, { availableSpecialties: new Set() });
+  assert.equal(result.routing.status, 'unassigned'); assert.equal(result.routing.specialty, 'orthopedics');
+  assert.match(result.routing.reasonSummary, /remains unassigned/); assert.equal(result.workflowStatus, 'submitted_for_clinical_review');
+  const summary = (await store.listPatientCases({ patientUid: 'patient-owner' })).cases[0];
+  assert.equal(summary.routing.status, 'unassigned'); assert.match(summary.nextStep, /Orthopedics Doctor is available/);
+  assert.equal((await store.listDoctorCases({ specialty: 'orthopedics' })).cases.length, 0);
+});
+test('live-case routing waits for final patient-grounded enrichment and then uses Orthopedics', async () => {
+  const store = createMemoryCaseStore(), id = newCaseId();
+  const preliminary = await store.createCase({ caseId: id, intake: routingIntake([['fatigue', 'confirmed']]), patientUid: 'patient-owner',
+    submittedForReview: true, intakeSource: 'live_intake', enrichmentStatus: 'pending' });
+  assert.equal(preliminary.routing, null);
+  const enriched = await store.updateEnrichment({ caseId: id, intake: routingIntake([['fatigue', 'confirmed'], ['left shoulder pain', 'confirmed']]),
+    status: 'succeeded', patientUid: 'patient-owner' });
+  assert.equal(enriched.workflowStatus, Workflow.REVIEW); assert.equal(enriched.routing, null);
+  const routed = await store.routeCase(id, { availableSpecialties: new Set(['orthopedics']) });
+  assert.equal(routed.routing.specialty, 'orthopedics'); assert.equal(routed.workflowStatus, Workflow.ROUTED);
+  assert.equal((await store.getPatientCase(id, 'patient-owner')).routing.specialty, 'orthopedics');
+});
 test('facts fingerprint ignores map order while detecting changed facts', () => {
   assert.equal(factsFingerprint({ a: 1, b: { c: 2, d: 3 } }), factsFingerprint({ b: { d: 3, c: 2 }, a: 1 }));
   assert.notEqual(factsFingerprint({ a: 1 }), factsFingerprint({ a: 2 }));
@@ -45,7 +101,7 @@ for (const mode of ['memory', 'firestore']) {
   test(`${mode}: route is atomic, concurrent/idempotent and preserves facts, timestamps and unrelated case`, async () => {
     const store = make(), id = newCaseId(), other = newCaseId(), intake = routingIntake();
     const before = await store.createCase({ caseId: id, intake }), unrelated = await store.createCase({ caseId: other, intake });
-    const results = await Promise.all(Array.from({ length: 6 }, () => store.routeCase(id)));
+    const results = await Promise.all(Array.from({ length: 6 }, () => store.routeCase(id, { availableSpecialties: new Set(['neurology']) })));
     assert.ok(results.every(doc => doc.routing.routedAt === results[0].routing.routedAt));
     const result = await store.getCase(id);
     assert.equal(result.workflowStatus, Workflow.ROUTED); assert.equal(result.routing.specialty, 'neurology');
@@ -56,7 +112,7 @@ for (const mode of ['memory', 'firestore']) {
     assert.equal((await store.getDoctorCase(id)).caseId, id);
     const changed = routingIntake([['fatigue', 'confirmed']]);
     await assert.rejects(store.createCase({ caseId: id, intake: changed }), e => e.code === 'CASE_CONFLICT');
-    assert.equal((await store.routeCase(id)).routing.routedAt, result.routing.routedAt);
+    assert.equal((await store.routeCase(id, { availableSpecialties: new Set(['neurology']) })).routing.routedAt, result.routing.routedAt);
   });
   test(`${mode}: emergency is unchanged and never enters doctor queue`, async () => {
     const store = make(), caseId = newCaseId();
@@ -76,10 +132,10 @@ for (const mode of ['memory', 'firestore']) {
     for (const first of [true, false]) {
       const store = make(), caseId = newCaseId(), attemptId = randomUUID();
       await store.createCase({ caseId, intake: routingIntake() });
-      const originalRoute = first ? (await store.routeCase(caseId)).routing : null;
+      const originalRoute = first ? (await store.routeCase(caseId, { availableSpecialties: new Set(['neurology']) })).routing : null;
       await store.updateCaseStatus(caseId, Handoff.PENDING, attemptId); await store.updateCaseStatus(caseId, Handoff.ACTIVE, attemptId);
       await store.updateHandoffResult(caseId, { attemptId, receipt: { caseId: 'DEMO-1234ABCD' } });
-      const routed = await store.routeCase(caseId);
+      const routed = await store.routeCase(caseId, { availableSpecialties: new Set(['neurology']) });
       assert.equal(routed.handoffReceipt.caseId, 'DEMO-1234ABCD'); assert.equal(routed.handoffStatus, 'completed');
       assert.equal(routed.workflowStatus, Workflow.ROUTED); if (first) assert.deepEqual(routed.routing, originalRoute);
     }
@@ -91,9 +147,9 @@ test('Firestore fresh-client read-back, no duplicate writes, incomplete state an
   const incomplete = { ...db.docs.get(id), workflowStatus: 'intake_in_progress' }; db.docs.set(id, incomplete);
   await assert.rejects(store.routeCase(id), e => e.code === 'ROUTING_NOT_ALLOWED');
   db.docs.set(id, { ...incomplete, workflowStatus: Workflow.INTAKE });
-  const routed = await store.routeCase(id), writes = db.writes;
+  const routed = await store.routeCase(id, { availableSpecialties: new Set(['neurology']) }), writes = db.writes;
   assert.deepEqual((await createFirestoreCaseStore(db).getDoctorCase(id)).routing, routed.routing);
-  await store.routeCase(id); assert.equal(db.writes, writes); assert.equal(db.docs.size, 1);
+  await store.routeCase(id, { availableSpecialties: new Set(['neurology']) }); assert.equal(db.writes, writes); assert.equal(db.docs.size, 1);
   db.docs.get(id).reportedFacts.patient.name = 'Changed outside application';
   await assert.rejects(store.routeCase(id), e => e.code === 'ROUTING_CONFLICT');
   await assert.rejects(store.getDoctorCase(id), e => e.code === 'CASE_NOT_FOUND');
@@ -110,7 +166,7 @@ test('confirmed emergency facts block routing even if workflow state is inconsis
 });
 test('Firestore queue is bounded, paginated without duplicates, excludes unrouted cases', async () => {
   const db = routingFirestoreMock(), store = createFirestoreCaseStore(db);
-  for (let i = 0; i < 53; i++) { const caseId = newCaseId(); await store.createCase({ caseId, intake: routingIntake() }); if (i < 52) await store.routeCase(caseId); }
+  for (let i = 0; i < 53; i++) { const caseId = newCaseId(); await store.createCase({ caseId, intake: routingIntake() }); if (i < 52) await store.routeCase(caseId, { availableSpecialties: new Set(['neurology']) }); }
   const first = await store.listDoctorCases(), second = await store.listDoctorCases({ after: first.nextCursor });
   assert.equal(first.cases.length, 50); assert.equal(second.cases.length, 2); assert.equal(second.nextCursor, null);
   assert.equal(new Set([...first.cases, ...second.cases].map(doc => doc.caseId)).size, 52);
@@ -119,7 +175,7 @@ test('Firestore queue is bounded, paginated without duplicates, excludes unroute
 test('routing HTTP rejects client decisions, foreign origins, invalid paths and safely reports storage failures', async t => {
   const store = createMemoryCaseStore(), id = newCaseId(), origin = 'http://127.0.0.1:4173';
   await store.createCase({ caseId: id, intake: routingIntake(), patientUid: 'verified-patient' });
-  const handler = routingEndpoint(store, [origin], { resolvePatientIdentity: async uid => {
+  const handler = routingEndpoint(store, [origin], { resolveAvailableSpecialties: async () => new Set(['neurology']), resolvePatientIdentity: async uid => {
     assert.equal(uid, 'verified-patient'); return { firstName: 'Demo', lastName: 'Profile' };
   } }), server = createServer((req, res) => void handler(req, res));
   server.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => new Promise(resolve => server.close(resolve)));

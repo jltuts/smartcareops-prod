@@ -7,7 +7,7 @@ export class ResourceError extends Error {
 export const check = (condition, code = 'INVALID_RESOURCE_ARGUMENTS') => { if (!condition) throw new ResourceError(code); };
 export const exact = (value, keys, optional = []) => check(value && typeof value === 'object' && !Array.isArray(value) && keys.every(k => Object.hasOwn(value, k)) && Object.keys(value).every(k => [...keys, ...optional].includes(k)));
 export const hospitalIds = ['HOSP-001', 'HOSP-002', 'HOSP-003'];
-export const specialties = ['general_medicine', 'cardiology', 'pulmonology', 'neurology', 'endocrinology'];
+export const specialties = ['general_medicine', 'cardiology', 'pulmonology', 'neurology', 'endocrinology', 'orthopedics'];
 export const capabilities = ['emergency', ...specialties, 'icu', 'imaging', 'monitored_care'];
 export const ambulanceIds = ['AMB-01', 'AMB-02', 'AMB-03'];
 const str = values => ({ type: 'string', enum: values });

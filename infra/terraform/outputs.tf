@@ -58,3 +58,47 @@ output "live_edge_url" {
 output "cloud_armor_policy_name" {
   value = try(google_compute_security_policy.edge[0].name, null)
 }
+
+output "event_topic" {
+  description = "Dormant M55 care-event topic; null until explicitly enabled."
+  value       = try(google_pubsub_topic.care_events[0].id, null)
+}
+
+output "event_subscriptions" {
+  description = "M55 pull subscriptions by bounded event family; empty until explicitly enabled."
+  value = merge(
+    var.enable_m55 ? { audit = google_pubsub_subscription.audit[0].id } : {},
+    { for key, subscription in google_pubsub_subscription.event_consumer : key => subscription.id }
+  )
+}
+
+output "event_workers" {
+  description = "M55 publisher worker pool and authenticated audit service; null until explicitly enabled."
+  value = var.enable_m55_workers ? merge({
+    publisher = google_cloud_run_v2_worker_pool.event_publisher[0].name
+    audit     = google_cloud_run_v2_service.event_audit[0].name
+    }, var.enable_m55_operations_worker ? {
+    operations = google_cloud_run_v2_service.event_operations[0].name
+  } : {}, { for family, worker in google_cloud_run_v2_service.event_shadow : family => worker.name }) : null
+}
+
+output "m60_agent_runtime" {
+  description = "Isolated M60 reasoning-engine name and region; null while disabled."
+  value = var.enable_m60_agent_runtime ? {
+    name   = google_vertex_ai_reasoning_engine.m60_clinical_shadow[0].name
+    region = var.region
+  } : null
+}
+
+output "m60_phase_d_foundation" {
+  description = "Approved fictional policy corpus and inspect-only Model Armor resources; null while disabled."
+  value = var.enable_m60_phase_d_foundation ? {
+    corpus_name          = google_vertex_ai_rag_corpus.m60_policy[0].name
+    corpus_region        = var.region
+    corpus_version       = var.m60_policy_corpus_version
+    manifest_digest      = var.m60_policy_manifest_digest
+    model_armor_template = google_model_armor_template.m60_inspect[0].name
+    admission_template   = google_model_armor_template.m60_admission[0].name
+    enforcement          = "INSPECT_ONLY"
+  } : null
+}

@@ -42,6 +42,207 @@ paths:
       responses:
         "204":
           description: Exact allowed-origin CORS response from backend
+  /api/regional:
+    get:
+      operationId: readRegionalIntelligence
+      responses:
+        "200":
+          description: Fictional regional evidence and operational assessment
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role required
+    options:
+      operationId: regionalReadCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/operations:
+    get:
+      operationId: readHospitalOperations
+      responses:
+        "200":
+          description: Fictional hospital operations evidence and plans
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role required
+    options:
+      operationId: operationsReadCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/operations/capacity:
+    post:
+      operationId: changeHospitalOperationsCapacity
+      responses:
+        "200":
+          description: Record a fictional HOSP-001 monitored-bed capacity change
+        "400":
+          description: Invalid capacity command
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role or exact Origin required
+        "409":
+          description: Capacity version is stale or request conflicts
+    options:
+      operationId: operationsCapacityCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/operations/run:
+    post:
+      operationId: requestHospitalOperationsAssessment
+      responses:
+        "200":
+          description: Request a bounded fictional Hospital Operations assessment
+        "400":
+          description: Invalid assessment request
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role or exact Origin required
+    options:
+      operationId: operationsRunCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/operations/reset:
+    post:
+      operationId: resetHospitalOperationsDemo
+      responses:
+        "200":
+          description: Reset only the fictional HOSP-001 capacity scenario and bounded assessment budget
+        "400":
+          description: Invalid reset request
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role or exact Origin required
+        "409":
+          description: An assessment is currently active
+    options:
+      operationId: operationsResetCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/operations/approvals/{approvalId}:
+    parameters:
+      - name: approvalId
+        in: path
+        required: true
+        type: string
+    post:
+      operationId: decideHospitalOperationsAction
+      responses:
+        "200":
+          description: Record an approved or rejected fictional Operations action
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role or exact Origin required
+        "409":
+          description: Approval is stale, expired, superseded, or already decided
+    options:
+      operationId: operationsApprovalCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/operations/demo-verify:
+    post:
+      operationId: verifyRoutineIntakeBoundary
+      responses:
+        "200":
+          description: Sanitized event-boundary trace for a supplied fictional case ID
+        "400":
+          description: Invalid case ID
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role or exact Origin required
+    options:
+      operationId: operationsDemoVerifyCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+%{ if enable_m43_gateway_routes ~}
+  /api/operations/emergency-responses:
+    get:
+      operationId: readEmergencyResponseSummary
+      responses:
+        "200":
+          description: Read-only fictional emergency and ambulance aggregate
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role or exact Origin required
+    options:
+      operationId: emergencyResponseSummaryCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+%{ endif ~}
+  /api/notifications/appointments:
+    get:
+      operationId: readOwnAppointmentNotifications
+      parameters:
+        - name: recipientType
+          in: query
+          required: true
+          type: string
+      responses:
+        "200":
+          description: UID-scoped fictional appointment notices for Patient or Doctor
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Role or exact Origin required
+    options:
+      operationId: appointmentNotificationsCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/notifications/cases:
+    get:
+      operationId: readAuthorizedCaseNotifications
+      parameters:
+        - name: recipientType
+          in: query
+          required: true
+          type: string
+      responses:
+        "200":
+          description: Role and case-scoped fictional in-app notices
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Role or case access denied
+    options:
+      operationId: caseNotificationsCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/notifications:
+    get:
+      operationId: readOperationalNotifications
+      parameters:
+        - name: recipientType
+          in: query
+          required: false
+          type: string
+      responses:
+        "200":
+          description: Fictional durable operational notifications and receipts
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role required
+    options:
+      operationId: notificationsReadCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
 %{ endif ~}
 %{ if enable_m15 ~}
   /api/simulation:
@@ -190,7 +391,378 @@ paths:
         "204":
           description: Exact allowed-origin CORS response from backend
 %{ endif ~}
+%{ if enable_m18 ~}
+  /api/patterns:
+    get:
+      operationId: readSyntheticPatternAlert
+      responses:
+        "200":
+          description: Persisted safe aggregate alert state; no patient-level data
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role required
+    options:
+      operationId: patternReadCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/patterns/refresh:
+    post:
+      operationId: refreshSyntheticPatternDetection
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Deterministic respiratory aggregate scan and persisted alert
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role or exact Origin required
+    options:
+      operationId: patternRefreshCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/patterns/acknowledge:
+    post:
+      operationId: acknowledgeSyntheticPatternAlert
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Acknowledge current pattern alert for the verified staff UID
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Command Center role or exact Origin required
+        "409":
+          description: Alert is no longer current
+    options:
+      operationId: patternAcknowledgeCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+%{ endif ~}
 %{ if enable_hosted_live ~}
+  /api/doctor/application:
+    post:
+      operationId: submitDoctorProfileApplication
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Submit a pending Doctor profile application; does not grant Doctor access
+        "400":
+          description: Invalid profile application
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Exact allowed Origin required
+    options:
+      operationId: doctorApplicationCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/patient/application:
+    post:
+      operationId: submitPatientPortalAccessApplication
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Submit a Patient access request without starting an intake
+        "400":
+          description: Invalid application request
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Exact allowed Origin required
+    options:
+      operationId: patientApplicationCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/admin/doctor-applications:
+    get:
+      operationId: listPendingDoctorApplications
+      parameters:
+        - { name: limit, in: query, required: false, type: integer, minimum: 1, maximum: 50, default: 25 }
+        - { name: cursor, in: query, required: false, type: string, minLength: 1, maxLength: 128 }
+      responses:
+        "200":
+          description: Admin-only minimal queue of pending Doctor applications
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Admin role required
+    options:
+      operationId: adminDoctorApplicationsCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/admin/approved-doctors:
+    get:
+      operationId: listApprovedDoctors
+      parameters:
+        - { name: limit, in: query, required: false, type: integer, minimum: 1, maximum: 50, default: 25 }
+        - { name: cursor, in: query, required: false, type: string, minLength: 1, maxLength: 128 }
+      responses:
+        "200":
+          description: Admin-only directory of approved and verified Doctors
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Admin role required
+    options:
+      operationId: approvedDoctorsCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/admin/approved-doctors/{uid}/specialties/{specialty}:
+    delete:
+      operationId: removeApprovedDoctorSpecialty
+      consumes: [application/json]
+      parameters:
+        - { name: uid, in: path, required: true, type: string, minLength: 1, maxLength: 128 }
+        - { name: specialty, in: path, required: true, type: string, enum: [general_medicine, cardiology, pulmonology, neurology, endocrinology, orthopedics] }
+        - { name: Idempotency-Key, in: header, required: true, type: string, minLength: 16, maxLength: 128 }
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            additionalProperties: false
+            required: [expectedSpecialties, confirmed]
+            properties:
+              expectedSpecialties:
+                type: array
+                minItems: 1
+                uniqueItems: true
+                items: { type: string, enum: [general_medicine, cardiology, pulmonology, neurology, endocrinology, orthopedics] }
+              confirmed: { type: boolean, enum: [true] }
+      responses:
+        "200":
+          description: One verified specialty removed; final removal also removes Doctor Portal access
+        "400":
+          description: Invalid or unverified specialty removal request
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Admin role or exact allowed Origin required
+        "409":
+          description: Doctor specialties changed before removal
+    options:
+      operationId: removeApprovedDoctorSpecialtyCorsPreflight
+      parameters:
+        - { name: uid, in: path, required: true, type: string }
+        - { name: specialty, in: path, required: true, type: string }
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/admin/patient-applications:
+    get:
+      operationId: listPendingPatientApplications
+      parameters:
+        - { name: limit, in: query, required: false, type: integer, minimum: 1, maximum: 50, default: 25 }
+        - { name: cursor, in: query, required: false, type: string, minLength: 1, maxLength: 128 }
+      responses:
+        "200":
+          description: Admin-only minimal queue of pending Patient access applications
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Admin role required
+    options:
+      operationId: adminPatientApplicationsCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/admin/doctor-applications/{uid}/decision:
+    post:
+      operationId: reviewDoctorApplication
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          type: string
+        - { name: Idempotency-Key, in: header, required: true, type: string, minLength: 16, maxLength: 128 }
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            additionalProperties: false
+            required: [decision, applicationVersion, confirmed]
+            properties:
+              decision: { type: string, enum: [approved, rejected] }
+              applicationVersion: { type: integer, minimum: 1 }
+              confirmed: { type: boolean, enum: [true] }
+              independentlyVerified: { type: boolean }
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Doctor application approved after explicit credential verification or rejected
+        "400":
+          description: Invalid review request
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Admin role or exact allowed Origin required
+        "409":
+          description: Application is no longer pending
+    options:
+      operationId: adminDoctorApplicationDecisionCorsPreflight
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          type: string
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/admin/patient-applications/{uid}/decision:
+    parameters:
+      - name: uid
+        in: path
+        required: true
+        type: string
+    post:
+      operationId: reviewPatientApplication
+      consumes: [application/json]
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, type: string, minLength: 16, maxLength: 128 }
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            additionalProperties: false
+            required: [decision, applicationVersion, confirmed]
+            properties:
+              decision: { type: string, enum: [approved, rejected] }
+              applicationVersion: { type: integer, minimum: 1 }
+              confirmed: { type: boolean, enum: [true] }
+      responses:
+        "200":
+          description: Admin approves or rejects access to the Patient Portal
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Admin role or exact allowed Origin required
+        "409":
+          description: Application is no longer pending
+    options:
+      operationId: adminPatientApplicationDecisionCorsPreflight
+      parameters:
+        - name: uid
+          in: path
+          required: true
+          type: string
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/admin/settings:
+    get:
+      operationId: readAdminSettings
+      responses:
+        "200":
+          description: Admin reads Patient Portal access mode
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Admin role required
+    options:
+      operationId: adminSettingsCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/admin/settings/patient-access:
+    put:
+      operationId: updatePatientPortalAccessMode
+      consumes: [application/json]
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, type: string, minLength: 16, maxLength: 128 }
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            additionalProperties: false
+            required: [mode, expectedVersion, confirmed]
+            properties:
+              mode: { type: string, enum: [open, approved_only] }
+              expectedVersion: { type: integer, minimum: 1 }
+              confirmed: { type: boolean, enum: [true] }
+      responses:
+        "200":
+          description: Persist Patient Portal open or approved-only access policy
+        "400":
+          description: Invalid access mode
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Admin role or exact allowed Origin required
+    options:
+      operationId: updatePatientPortalAccessModeCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/admin/purge-preview:
+    get:
+      operationId: previewSmartCareOpsTestDataPurge
+      x-google-backend:
+        address: ${backend_url}
+        jwt_audience: ${backend_url}
+        path_translation: APPEND_PATH_TO_ADDRESS
+        deadline: 60.0
+      responses:
+        "200":
+          description: Counts of SmartCareOps demo records included in the purge
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Admin role required
+    options:
+      operationId: previewSmartCareOpsTestDataPurgeCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/admin/purge:
+    post:
+      operationId: purgeSmartCareOpsTestData
+      x-google-backend:
+        address: ${backend_url}
+        jwt_audience: ${backend_url}
+        path_translation: APPEND_PATH_TO_ADDRESS
+        deadline: 240.0
+      consumes: [application/json]
+      parameters:
+        - { name: Idempotency-Key, in: header, required: true, type: string, minLength: 16, maxLength: 128 }
+        - name: body
+          in: body
+          required: true
+          schema:
+            type: object
+            additionalProperties: false
+            required: [confirmation, previewId]
+            properties:
+              confirmation: { type: string, enum: [PURGE ALL TEST DATA] }
+              previewId: { type: string, minLength: 36, maxLength: 36 }
+      responses:
+        "200":
+          description: Previewed SmartCareOps Firestore test records deleted; Admin profile and access policy retained
+        "400":
+          description: Required typed purge confirmation is invalid
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Admin role or exact allowed Origin required
+        "409":
+          description: Preview expired or observed data version changed
+        "503":
+          description: Retryable or partial purge failure with a sanitized audit receipt
+    options:
+      operationId: purgeSmartCareOpsTestDataCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
   /api/profile:
     get:
       operationId: readOwnProfile
@@ -233,6 +805,165 @@ paths:
       responses:
         "204":
           description: Exact allowed-origin CORS response from backend
+  /api/intake/voice/complete:
+    post:
+      operationId: completePatientVoiceIntake
+      x-google-backend:
+        address: ${backend_url}
+        jwt_audience: ${backend_url}
+        path_translation: APPEND_PATH_TO_ADDRESS
+        deadline: 60.0
+      consumes: [application/json]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          type: string
+      responses:
+        "200":
+          description: Completed UID-owned voice intake saved under its preassigned case ID
+        "400":
+          description: Invalid completion payload
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+        "409":
+          description: Voice session unavailable or emergency evidence not validated
+        "503":
+          description: Intake extraction or persistence temporarily unavailable
+    options:
+      operationId: patientVoiceCompletionCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/intake/chat/session:
+    get:
+      operationId: restoreOwnedPatientChatIntake
+      responses:
+        "200":
+          description: Active UID-owned typed intake state
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+        "404":
+          description: Chat session missing or owned by another Patient
+    post:
+      operationId: createPatientChatIntake
+      consumes: [application/json]
+      responses:
+        "201":
+          description: New or resumed UID-owned typed intake
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+    delete:
+      operationId: cancelOwnedPatientChatIntake
+      responses:
+        "200":
+          description: Active typed intake cancelled without case creation
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+    options:
+      operationId: patientChatSessionCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/intake/chat/message:
+    post:
+      operationId: submitPatientChatAnswer
+      consumes: [application/json]
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          type: string
+      responses:
+        "200":
+          description: Accepted answer and next backend-authorized intake state
+        "400":
+          description: Invalid message shape or length
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role, ownership, or exact Origin required
+        "409":
+          description: Stale revision, duplicate conflict, or message already processing
+        "429":
+          description: Bounded per-session message rate exceeded
+    options:
+      operationId: patientChatMessageCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/intake/medicine/scan:
+    post:
+      operationId: scanPatientMedicinePackaging
+      consumes: [application/json]
+      responses:
+        "200":
+          description: Patient-authorized still-image label reading; image bytes are not retained
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+        "409":
+          description: Server-owned active intake required
+        "413":
+          description: Image exceeds the bounded server limit
+        "429":
+          description: Medicine scan rate limit reached
+    options:
+      operationId: medicineScanCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/intake/medicine/confirm:
+    post:
+      operationId: confirmPatientReportedMedicine
+      consumes: [application/json]
+      responses:
+        "201":
+          description: One idempotent confirmed patient-reported medicine entry saved to the active intake
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+        "409":
+          description: Active intake required or a different entry was already confirmed
+    options:
+      operationId: medicineConfirmCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/intake/evidence/share:
+    post:
+      operationId: sharePatientBodyAreaEvidence
+      consumes: [application/json]
+      responses:
+        "201":
+          description: Patient-authorized body-area still attached to the active intake
+        "400":
+          description: Invalid evidence metadata or image
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+        "409":
+          description: Active intake required or evidence identifier conflict
+        "413":
+          description: Image exceeds the bounded server limit
+        "429":
+          description: Evidence sharing rate limit reached
+    options:
+      operationId: patientEvidenceShareCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
   /api/intake-finalization:
     get:
       operationId: readOwnedIntakeFinalization
@@ -249,6 +980,21 @@ paths:
           description: Finalization missing, expired, or owned by another UID
     options:
       operationId: finalizationCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/cases:
+    get:
+      operationId: listOwnedPatientCases
+      responses:
+        "200":
+          description: Newest-first paginated case summaries owned by the verified Patient UID
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+    options:
+      operationId: patientCasesCorsPreflight
       responses:
         "204":
           description: Exact allowed-origin CORS response from backend
@@ -274,6 +1020,55 @@ paths:
       responses:
         "204":
           description: Exact allowed-origin CORS response from backend
+  /api/cases/{caseId}/appointment/response:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+    post:
+      operationId: respondToDoctorAppointmentProposal
+      responses:
+        "200":
+          description: Owning Patient's durable appointment response
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+        "409":
+          description: Stale or closed appointment proposal
+    options:
+      operationId: appointmentResponseCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/cases/{caseId}/evidence/{evidenceId}:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+      - name: evidenceId
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: readOwnCaseEvidenceImage
+      produces: [image/jpeg, image/png, image/webp]
+      responses:
+        "200":
+          description: Authenticated Patient reads an image attached to their own case
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Patient role or exact Origin required
+        "404":
+          description: Case is not owned by the Patient or image is unavailable
+    options:
+      operationId: ownCaseEvidenceCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
   /api/dispatcher/cases:
     get:
       operationId: listDispatcherEmergencyCases
@@ -286,6 +1081,126 @@ paths:
           description: Dispatcher role or exact Origin required
     options:
       operationId: dispatcherQueueCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/dispatcher/cases/{caseId}:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: readDispatcherEmergencyCase
+      responses:
+        "200":
+          description: Dispatcher-role emergency case detail
+    options:
+      operationId: dispatcherCaseCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/dispatcher/cases/{caseId}/acknowledge:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+    post:
+      operationId: acknowledgeDispatcherEmergency
+      responses:
+        "200":
+          description: Human Dispatcher acknowledgement
+    options:
+      operationId: dispatcherAcknowledgeCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/dispatcher/cases/{caseId}/hospitals:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: listEligibleEmergencyHospitals
+      responses:
+        "200":
+          description: Eligible fictional demo hospital options
+    options:
+      operationId: emergencyHospitalsCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/dispatcher/cases/{caseId}/hospitals/{hospitalId}/select:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+      - name: hospitalId
+        in: path
+        required: true
+        type: string
+    post:
+      operationId: selectEmergencyHospital
+      responses:
+        "200":
+          description: Human-recorded simulated hospital acceptance
+    options:
+      operationId: selectEmergencyHospitalCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/ambulances:
+    get:
+      operationId: listFictionalAmbulances
+      responses:
+        "200":
+          description: Bounded fictional ambulance availability
+    options:
+      operationId: ambulanceListCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/cases/{caseId}/ambulance/{unitId}/assign:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+      - name: unitId
+        in: path
+        required: true
+        type: string
+    post:
+      operationId: assignFictionalAmbulance
+      responses:
+        "200":
+          description: Human-controlled fictional ambulance assignment
+    options:
+      operationId: ambulanceAssignmentCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/cases/{caseId}/ambulance/{action}:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+      - name: action
+        in: path
+        required: true
+        type: string
+        enum: [dispatch, arrive-pickup, start-transport, arrive-hospital, complete]
+    post:
+      operationId: advanceFictionalAmbulance
+      responses:
+        "200":
+          description: Human-controlled fictional response transition
+    options:
+      operationId: ambulanceTransitionCorsPreflight
       responses:
         "204":
           description: Exact allowed-origin CORS response from backend
@@ -324,6 +1239,167 @@ paths:
       responses:
         "204":
           description: Exact allowed-origin CORS response from backend
+  /api/doctor/cases/{caseId}/appointment:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+    post:
+      operationId: proposeDoctorAppointment
+      responses:
+        "200":
+          description: Verified Doctor's durable fictional proposal
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Doctor role or exact Origin required
+        "409":
+          description: Ineligible case or stale proposal version
+    options:
+      operationId: doctorAppointmentCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/doctor/cases/{caseId}/lab-reports:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: listDoctorCaseLabReports
+      responses:
+        "200":
+          description: Authenticated Doctor lists original laboratory reports for an authorized case
+    post:
+      operationId: uploadDoctorCaseLabReport
+      responses:
+        "201":
+          description: Authenticated Doctor stores a private laboratory report for an authorized case
+    options:
+      operationId: doctorCaseLabReportsCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/doctor/cases/{caseId}/lab-reports/{reportId}/file:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+      - name: reportId
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: downloadDoctorCaseLabReport
+      produces: [application/pdf, image/jpeg, image/png]
+      responses:
+        "200":
+          description: Authenticated case-scoped read of the stored original
+    options:
+      operationId: doctorCaseLabReportFileCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/doctor/cases/{caseId}/lab-reports/{reportId}/extract:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+      - name: reportId
+        in: path
+        required: true
+        type: string
+    post:
+      operationId: extractDoctorCaseLabReport
+      x-google-backend:
+        address: ${backend_url}
+        jwt_audience: ${backend_url}
+        path_translation: APPEND_PATH_TO_ADDRESS
+        deadline: 60.0
+      responses:
+        "200":
+          description: Gemini extraction saved as unverified pending Doctor review
+    options:
+      operationId: doctorCaseLabReportExtractionCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/doctor/cases/{caseId}/lab-reports/{reportId}/verify:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+      - name: reportId
+        in: path
+        required: true
+        type: string
+    post:
+      operationId: verifyDoctorCaseLabReport
+      responses:
+        "200":
+          description: Authorized Doctor verifies a version-checked corrected report revision
+        "409":
+          description: Extraction changed or verification was already recorded
+    options:
+      operationId: doctorCaseLabReportVerificationCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/doctor/cases/{caseId}/medicine-image:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: readDoctorCaseMedicineImage
+      produces: [image/jpeg, image/webp]
+      responses:
+        "200":
+          description: Authenticated case-scoped packaging still for an authorized Doctor
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Doctor role or exact Origin required
+        "404":
+          description: Case or packaging image unavailable
+    options:
+      operationId: doctorCaseMedicineImageCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/doctor/cases/{caseId}/evidence/{evidenceId}:
+    parameters:
+      - name: caseId
+        in: path
+        required: true
+        type: string
+      - name: evidenceId
+        in: path
+        required: true
+        type: string
+    get:
+      operationId: readDoctorCasePatientEvidenceImage
+      produces: [image/jpeg, image/png, image/webp]
+      responses:
+        "200":
+          description: Authenticated Doctor reads evidence for a case in the existing Doctor review queue
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Doctor role or exact Origin required
+        "404":
+          description: Case is outside the Doctor workflow or image is unavailable
+    options:
+      operationId: doctorCasePatientEvidenceCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
   /api/clinical:
     get:
       operationId: readClinicalReasoning
@@ -351,6 +1427,40 @@ paths:
           description: Doctor role or exact Origin required
     options:
       operationId: clinicalRunCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/clinical/lab-run:
+    post:
+      operationId: requestVerifiedLabAssessment
+      responses:
+        "200":
+          description: Request a Doctor-only review of one verified laboratory revision
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Doctor role or exact Origin required
+        "409":
+          description: Laboratory revision is no longer current
+    options:
+      operationId: clinicalLabRunCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/clinical/case-review:
+    post:
+      operationId: decideClinicalCaseReview
+      responses:
+        "200":
+          description: Persist an idempotent Doctor-owned case review decision
+        "401":
+          description: Missing or invalid Firebase ID token
+        "403":
+          description: Doctor role or exact Origin required
+        "409":
+          description: Case is no longer pending or already has a decision
+    options:
+      operationId: clinicalCaseReviewCorsPreflight
       responses:
         "204":
           description: Exact allowed-origin CORS response from backend

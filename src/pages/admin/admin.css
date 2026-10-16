@@ -1,0 +1,75 @@
+.admin-page { max-width: 1000px; margin-inline: auto; padding-bottom: 56px; }
+.admin-page h1 { color: #12344d; }
+.admin-access-shell .role-subtitle { margin-top: 0; }
+.admin-access-status { margin: 25px 0 16px; color: #526d7c; font-size: 14px; font-weight: 700; }
+.admin-access-preview { display: grid; gap: 20px; max-width: 1000px; }
+.admin-access-note { height: 94px; border: 1px solid #d7e6ee; border-left: 5px solid #d49a37; border-radius: 12px; background: #fffaf0; }
+.admin-access-card { display: grid; gap: 14px; padding: 20px; border: 1px solid #d7e6ee; border-radius: 14px; background: #fff; }
+.admin-access-card i { display: block; width: 65%; height: 18px; border-radius: 999px; background: #e5eff4; }
+.admin-access-card i:first-child { width: 42%; height: 27px; }
+.admin-access-card i:last-child { width: 38%; height: 40px; }
+.admin-section { margin-top: 30px; padding: 24px; border: 1px solid #d7e6ee; border-radius: 16px; background: #fff; box-shadow: 0 8px 24px rgb(28 78 108 / 5%); }
+.admin-section > h2 { margin: 0 0 10px; color: #12344d; font-size: 22px; }
+.admin-section > p:not(.admin-status) { color: #526d7c; font-size: 14px; line-height: 1.55; }
+.admin-heading { display: flex; align-items: end; justify-content: space-between; gap: 20px; }
+.admin-heading .role-subtitle { margin-top: 0; }
+.admin-refresh, .admin-application-actions button, .admin-retry { min-height: 42px; padding: 9px 14px; border: 1px solid #c6dce8; border-radius: 10px; background: #fff; color: #145779; font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; }
+.admin-refresh:hover, .admin-retry:hover { background: #eef7fb; }
+.admin-review-boundary { margin: 24px 0; padding: 18px 20px; border: 1px solid #d6e5ee; border-left: 5px solid #d49a37; border-radius: 12px; background: #fffaf0; }
+.admin-review-boundary strong { color: #674711; }
+.admin-review-boundary p { margin: 5px 0 0; color: #5f6870; font-size: 14px; }
+.admin-status { min-height: 24px; color: #526d7c; font-size: 13px; font-weight: 700; }
+.admin-application-list { display: grid; gap: 14px; }
+.admin-application { padding: 20px; border: 1px solid #d7e6ee; border-radius: 14px; background: #fff; box-shadow: 0 8px 24px rgb(28 78 108 / 5%); }
+.admin-application h2 { margin: 0 0 12px; color: #12344d; font-size: 19px; }
+.admin-application-details { display: grid; grid-template-columns: minmax(150px, 220px) 1fr; gap: 7px 14px; margin: 0 0 18px; font-size: 14px; }
+.admin-application-details dt { color: #617989; font-weight: 700; }
+.admin-application-details dd { margin: 0; color: #12344d; overflow-wrap: anywhere; }
+.admin-doctor-uid { display: block; color: #617989; font-size: 12px; overflow-wrap: anywhere; }
+.admin-doctor-specialties { margin: 0 0 17px; }
+.admin-doctor-specialties > strong { display: block; margin-bottom: 8px; color: #617989; font-size: 13px; }
+.admin-doctor-specialty-list { display: flex; flex-wrap: wrap; gap: 8px; margin: 0; padding: 0; list-style: none; }
+.admin-doctor-specialty-list li { display: inline-flex; align-items: center; gap: 8px; padding: 5px 6px 5px 11px; border: 1px solid #b7dce0; border-radius: 999px; background: #edf8f8; color: #146b73; font-size: 12px; font-weight: 750; }
+.admin-doctor-specialty-list .admin-remove-specialty { min-height: 28px; padding: 4px 8px; border: 0; border-radius: 999px; background: #fff; color: #8a3232; font: inherit; font-size: 11px; font-weight: 800; cursor: pointer; }
+.admin-doctor-specialty-list .admin-remove-specialty:hover { background: #fff0f0; }
+.admin-doctor-specialty-list .admin-remove-specialty:focus-visible { outline: 3px solid rgb(20 125 134 / 25%); outline-offset: 2px; }
+.admin-doctor-specialty-list .admin-remove-specialty:disabled { opacity: .6; cursor: wait; }
+.admin-verification { display: flex; align-items: flex-start; gap: 10px; max-width: 780px; color: #344e5f; font-size: 13px; line-height: 1.5; cursor: pointer; }
+.admin-verification input { width: 18px; height: 18px; flex: 0 0 18px; margin: 1px 0 0; accent-color: #176b8c; }
+.admin-application-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 17px; }
+.admin-application-actions .admin-approve { border-color: #0d6d60; background: #0d6d60; color: #fff; }
+.admin-application-actions .admin-approve:disabled { border-color: #d8e4e9; background: #e8eff2; color: #72848c; cursor: not-allowed; }
+.admin-application-actions .admin-reject { color: #8a3232; }
+.admin-application-actions button:disabled, .admin-refresh:disabled { opacity: .68; cursor: wait; }
+.admin-empty { padding: 22px; border: 1px dashed #c6dce8; border-radius: 12px; color: #526d7c; text-align: center; }
+.admin-access-controls { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.admin-access-controls label { color: #344e5f; font-weight: 700; }
+.admin-access-controls select, .admin-purge-section input { min-height: 42px; padding: 8px 12px; border: 1px solid #c6dce8; border-radius: 9px; color: #12344d; background: #fff; font: inherit; }
+.admin-access-controls button, #preview-purge, .admin-purge-button, .admin-load-more { min-height: 44px; padding: 9px 14px; border: 1px solid #176b8c; border-radius: 10px; color: #fff; background: #176b8c; font: inherit; font-weight: 750; cursor: pointer; }
+.admin-load-more { margin-top: 14px; }
+.admin-receipts ul { margin: 10px 0 0; padding-left: 22px; color: #344e5f; overflow-wrap: anywhere; }
+.admin-purge-section { border-color: #e6c7c7; background: #fffdfd; }
+.admin-purge-section > h2 { color: #8a3232; }
+.admin-purge-section label { display: block; margin: 18px 0 7px; color: #344e5f; font-size: 14px; }
+.admin-purge-section input { display: block; width: min(100%, 360px); }
+.admin-purge-button { margin-top: 12px; border-color: #a62d2d; background: #a62d2d; }
+.admin-purge-button:disabled, .admin-access-controls button:disabled, #preview-purge:disabled { opacity: .55; cursor: not-allowed; }
+.purge-preview { margin: 16px 0 6px; padding: 16px; border: 1px solid #e6c7c7; border-radius: 12px; background: #fff; color: #344e5f; overflow-wrap: anywhere; }
+.purge-preview ul { columns: 2; padding-left: 22px; font-size: 13px; }
+.admin-application h3 { margin: 0 0 12px; color: #12344d; font-size: 19px; }
+.patient-access-result { max-width: 760px; margin-inline: auto; }
+.patient-application-panel form { display: grid; gap: 16px; }
+.patient-application-panel button { justify-self: start; min-height: 42px; padding: 9px 14px; border: 0; border-radius: 10px; color: #fff; background: #176b8c; font: inherit; font-weight: 750; }
+@media (max-width: 600px) {
+  .admin-page { padding-top: 28px; }
+  .admin-heading { align-items: stretch; flex-direction: column; }
+  .admin-heading h1 { font-size: clamp(32px, 10vw, 46px); }
+  .admin-refresh { align-self: flex-start; }
+  .admin-application { padding: 16px; }
+  .admin-application-details { grid-template-columns: 1fr; gap: 2px; }
+  .admin-application-details dd { margin: 0 0 9px; }
+  .admin-section { padding: 16px; }
+  .purge-preview ul { columns: 1; }
+  .admin-access-controls { align-items: stretch; flex-direction: column; }
+  .admin-access-controls > * { width: 100%; }
+}

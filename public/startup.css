@@ -1,0 +1,147 @@
+/* Render-blocking, route-aware first-paint shell. The app replaces it on mount. */
+html[data-page-shell], html[data-page-shell] body { min-height: 100%; background: #f7fbff; color: #12344d; }
+html[data-page-shell] { font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; line-height: 1.5; }
+html[data-page-shell] *, html[data-page-shell] *::before, html[data-page-shell] *::after { box-sizing: border-box; }
+html[data-page-shell] body { margin: 0; }
+html[data-page-shell] .site-header, html[data-page-shell] #main { width: min(1120px, calc(100% - 48px)); margin-inline: auto; }
+html[data-page-shell] .site-header { position: sticky; z-index: 60; top: 0; width: min(1380px, calc(100% - 32px)); min-height: 72px; display: flex; align-items: center; justify-content: space-between; gap: 20px; padding: 8px 14px; border: 1px solid #d9e8ee; border-radius: 0 0 16px 16px; background: rgb(250 253 255 / 96%); box-shadow: 0 8px 26px rgb(23 75 101 / 8%); }
+html[data-page-shell] .smartcareops-brand { display: inline-flex; align-items: center; gap: 10px; color: #12344d; font-size: 18px; font-weight: 750; letter-spacing: -.025em; line-height: 1.1; text-decoration: none; }
+html[data-page-shell] .smartcareops-brand-mark { position: relative; display: inline-grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 11px; background: linear-gradient(145deg, #176da9, #15958c); }
+html[data-page-shell] .smartcareops-brand-mark i { position: absolute; display: block; width: 17px; height: 4px; border-radius: 5px; background: #fff; }
+html[data-page-shell] .smartcareops-brand-mark i:last-child { transform: rotate(90deg); }
+html[data-page-shell] .smartcareops-brand-copy { display: grid; min-width: 0; line-height: 1.1; }
+html[data-page-shell] .smartcareops-brand-copy strong { font: inherit; white-space: nowrap; }
+html[data-page-shell] .smartcareops-brand-copy small { margin-top: 3px; color: #6e8798; font-size: 9px; font-weight: 600; letter-spacing: .1em; text-transform: uppercase; }
+html[data-page-shell] .site-footer { display: none; }
+html[data-page-shell] .startup-header-skeleton { display: flex; align-items: center; gap: 10px; }
+html[data-app-ready="true"] .startup-header-skeleton { display: none; }
+html[data-page-shell] .startup-header-skeleton i, html[data-page-shell] .startup-brandbar > i,
+html[data-page-shell] .startup-shell i { display: block; border-radius: 999px; background: #e5eff4; }
+html[data-page-shell] .startup-header-skeleton i:first-child { width: 72px; height: 10px; }
+html[data-page-shell] .startup-header-skeleton i:last-child { width: 38px; height: 34px; border-radius: 10px; }
+html[data-page-shell] #main { min-height: calc(100vh - 78px); padding-bottom: 48px; }
+html[data-page-shell] .startup-shell { display: none; min-height: 70vh; }
+html[data-page-shell] .startup-shell { position: relative; }
+html[data-page-shell] .startup-status { position: absolute; z-index: 2; top: 4px; right: 12px; margin: 0; color: #617a89; font-size: 11px; font-weight: 650; }
+html[data-page-shell] .startup-shell i:not(.smartcareops-brand-mark i), html[data-page-shell] .startup-header-skeleton i, html[data-page-shell] .startup-brandbar > i { background-image: linear-gradient(100deg, #e5eff4 25%, #f3f8fa 50%, #e5eff4 75%); background-size: 200% 100%; animation: startup-shimmer 1.5s ease-in-out infinite; }
+html[data-page-shell] .site-header .auth-loading span { background: linear-gradient(100deg, #e2edf2 25%, #f3f8fa 50%, #e2edf2 75%); background-size: 200% 100%; animation: startup-shimmer 1.5s ease-in-out infinite; }
+@keyframes startup-shimmer { to { background-position: -200% 0; } }
+html[data-page-shell="home"] .startup-home, html[data-page-shell="manual"] .startup-manual,
+html[data-page-shell="patient"] .startup-patient, html[data-page-shell="doctor"] .startup-doctor,
+html[data-page-shell="dispatcher"] .startup-dispatcher, html[data-page-shell="command-center"] .startup-command-center,
+html[data-page-shell="profile"] .startup-profile, html[data-page-shell="about"] .startup-about, html[data-page-shell="admin"] .startup-admin { display: block; }
+html[data-page-shell="home"] .startup-brandbar, html[data-page-shell="manual"] .startup-brandbar,
+html[data-page-shell="patient"] .startup-brandbar, html[data-page-shell="profile"] .startup-brandbar { display: none; }
+html[data-page-shell="home"] #main, html[data-page-shell="manual"] #main,
+html[data-page-shell="patient"] #main, html[data-page-shell="profile"] #main { width: 100%; max-width: none; margin: 0; padding: 0; }
+html[data-page-shell="home"] body { background: #f9fcfe; }
+html[data-page-shell="patient"] body, html[data-page-shell="profile"] body { background: #f7fbff; }
+html[data-page-shell="home"] .startup-brandbar, html[data-page-shell="manual"] .startup-brandbar,
+html[data-page-shell="patient"] .startup-brandbar, html[data-page-shell="profile"] .startup-brandbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; width: min(1380px, calc(100% - 48px)); min-height: 76px; margin-inline: auto; }
+html[data-page-shell="home"] .startup-brandbar, html[data-page-shell="manual"] .startup-brandbar { padding: 10px 16px; border: 1px solid #d9e8ee; border-radius: 16px; background: rgb(250 253 255 / 88%); }
+html[data-page-shell="patient"] .startup-brandbar, html[data-page-shell="profile"] .startup-brandbar { width: 100%; padding-inline: clamp(20px, 5vw, 72px); border-bottom: 1px solid #e0ebe7; background: #fff; }
+html[data-page-shell="home"] .startup-brandbar > i, html[data-page-shell="manual"] .startup-brandbar > i,
+html[data-page-shell="patient"] .startup-brandbar > i, html[data-page-shell="profile"] .startup-brandbar > i { width: 94px; height: 34px; border-radius: 10px; }
+html[data-page-shell="home"] .startup-home-hero { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); align-items: center; gap: 6vw; width: min(1380px, calc(100% - 80px)); min-height: min(70vh, 700px); margin: auto; padding: 48px 0; }
+html[data-page-shell="home"] .startup-home-hero > div:first-child { display: grid; align-content: center; gap: 18px; }
+html[data-page-shell="home"] .startup-home-hero > div:first-child i { height: clamp(28px, 5vw, 65px); border-radius: 12px; }
+html[data-page-shell="home"] .startup-home-hero > div:first-child i:nth-child(1) { width: 82%; }
+html[data-page-shell="home"] .startup-home-hero > div:first-child i:nth-child(2) { width: 94%; }
+html[data-page-shell="home"] .startup-home-hero > div:first-child i:nth-child(3) { width: 71%; height: 18px; margin-top: 6px; }
+html[data-page-shell="home"] .startup-actions { display: flex; gap: 12px; margin-top: 10px; }
+html[data-page-shell="home"] .startup-actions i { width: 155px; height: 48px; border-radius: 12px; background: #dcecf3; }
+html[data-page-shell="home"] .startup-actions i:last-child { width: 130px; background: #edf4f7; }
+html[data-page-shell="home"] .startup-visual { position: relative; min-height: 430px; border: 1px solid #d7e8ee; border-radius: 50%; background: radial-gradient(circle, #fff 0 20%, #eaf7f8 21% 50%, transparent 51%), linear-gradient(145deg, #f1f8fc, #e5f4f2); }
+html[data-page-shell="home"] .startup-visual i { position: absolute; width: 26%; height: 76px; border: 1px solid #d7e8ee; border-radius: 14px; background: #fff; box-shadow: 0 10px 28px rgb(25 80 110 / 6%); }
+html[data-page-shell="home"] .startup-visual i:nth-child(1) { top: 12%; left: 10%; } html[data-page-shell="home"] .startup-visual i:nth-child(2) { top: 42%; right: 4%; } html[data-page-shell="home"] .startup-visual i:nth-child(3) { bottom: 10%; left: 18%; }
+html[data-page-shell="home"] .startup-home-portals { display: grid; grid-template-columns: repeat(4, 1fr); gap: 16px; width: min(1380px, calc(100% - 80px)); margin: 0 auto 42px; }
+html[data-page-shell="home"] .startup-home-portals i { height: 150px; border: 1px solid #d9e8ee; border-radius: 16px; background: #fff; }
+html[data-page-shell="manual"] .startup-manual-hero { display: grid; gap: 18px; width: min(1100px, calc(100% - 48px)); min-height: 350px; margin: 46px auto; padding: 44px; border-radius: 24px; background: linear-gradient(120deg, #fff, #eaf5f8); }
+html[data-page-shell="manual"] .startup-manual-hero i:first-child { width: min(700px, 78%); height: 48px; } html[data-page-shell="manual"] .startup-manual-hero i:nth-child(2) { width: min(560px, 64%); height: 48px; } html[data-page-shell="manual"] .startup-manual-hero i:last-child { width: min(480px, 55%); height: 16px; margin-top: 8px; }
+html[data-page-shell="manual"] .startup-manual-content { display: grid; grid-template-columns: 240px minmax(0, 1fr); gap: 28px; width: min(1100px, calc(100% - 48px)); margin: auto; }
+html[data-page-shell="manual"] .startup-manual-content i { min-height: 180px; border-radius: 16px; background: #fff; }
+html[data-page-shell="manual"] .startup-manual-content i:first-child { grid-row: span 2; min-height: 380px; border: 1px solid #dceaf1; }
+html[data-page-shell="patient"] .startup-patient-layout, html[data-page-shell="profile"] .startup-patient-layout { display: grid; grid-template-columns: 218px minmax(0, 1fr); min-height: calc(100vh - 76px); }
+html[data-page-shell="patient"] .startup-patient-layout aside, html[data-page-shell="profile"] .startup-patient-layout aside { display: grid; align-content: start; gap: 12px; padding: 34px 20px; border-right: 1px solid #e0ebe7; background: #f9fcfb; }
+html[data-page-shell="patient"] .startup-patient-layout aside i, html[data-page-shell="profile"] .startup-patient-layout aside i { height: 40px; border-radius: 10px; background: #e9f1ef; }
+html[data-page-shell="patient"] .startup-patient-layout > div, html[data-page-shell="profile"] .startup-patient-layout > div { width: min(1400px, 100%); margin: auto; padding: clamp(28px, 4vw, 58px) clamp(22px, 5vw, 72px); }
+html[data-page-shell="patient"] .startup-patient-layout > div > i, html[data-page-shell="profile"] .startup-patient-layout > div > i { width: 55%; height: 20px; margin-bottom: 14px; }
+html[data-page-shell="patient"] .startup-patient-layout > div > i:first-child, html[data-page-shell="profile"] .startup-patient-layout > div > i:first-child { width: 34%; height: 42px; }
+html[data-page-shell="patient"] .startup-patient-cards, html[data-page-shell="profile"] .startup-profile-cards { display: grid; grid-template-columns: 1fr 1fr; gap: 18px; margin-top: 24px; }
+html[data-page-shell="patient"] .startup-patient-cards i, html[data-page-shell="profile"] .startup-profile-cards i { min-height: 220px; border: 1px solid #dce9e4; border-radius: 18px; background: #fff; }
+html[data-page-shell="profile"] .startup-profile-card { display: grid; grid-template-columns: repeat(2, 1fr); gap: 16px; margin-top: 20px; padding: 24px; border: 1px solid #dce9e4; border-radius: 18px; background: #fff; }
+html[data-page-shell="profile"] .startup-profile-card i { height: 58px; border-radius: 10px; background: #edf4f5; }
+html[data-page-shell="doctor"] #main, html[data-page-shell="command-center"] #main { width: min(1500px, calc(100% - 64px)); }
+html[data-page-shell="doctor"] .startup-doctor, html[data-page-shell="dispatcher"] .startup-dispatcher, html[data-page-shell="command-center"] .startup-command-center { padding: 22px 0 48px; }
+html[data-page-shell="doctor"] .startup-doctor-heading, html[data-page-shell="dispatcher"] .startup-dispatcher-heading, html[data-page-shell="command-center"] .startup-command-heading { display: grid; gap: 12px; margin: 18px 0 24px; }
+html[data-page-shell="doctor"] .startup-doctor-heading i:first-child, html[data-page-shell="dispatcher"] .startup-dispatcher-heading i:first-child, html[data-page-shell="command-center"] .startup-command-heading i:first-child { width: 28%; height: 12px; }
+html[data-page-shell="doctor"] .startup-doctor-heading i:nth-child(2), html[data-page-shell="dispatcher"] .startup-dispatcher-heading i:nth-child(2), html[data-page-shell="command-center"] .startup-command-heading i:nth-child(2) { width: 52%; height: 46px; border-radius: 12px; }
+html[data-page-shell="doctor"] .startup-doctor-heading i:last-child, html[data-page-shell="dispatcher"] .startup-dispatcher-heading i:last-child, html[data-page-shell="command-center"] .startup-command-heading i:last-child { width: 68%; height: 15px; }
+html[data-page-shell="doctor"] .startup-doctor-workspace { display: grid; grid-template-columns: minmax(292px, 330px) minmax(0, 1fr); gap: 16px; min-height: min(590px, calc(100dvh - 270px)); }
+html[data-page-shell="doctor"] .startup-doctor-workspace > div, html[data-page-shell="dispatcher"] .startup-dispatcher-workspace > i, html[data-page-shell="command-center"] .startup-command-alert, html[data-page-shell="command-center"] .startup-command-panels i { border: 1px solid #d9e7ee; border-radius: 18px; background: #fff; box-shadow: 0 9px 28px rgb(18 52 77 / 5%); }
+html[data-page-shell="doctor"] .startup-doctor-workspace > div { display: grid; align-content: start; gap: 14px; padding: 22px; }
+html[data-page-shell="doctor"] .startup-doctor-workspace > div i { height: 66px; border: 1px solid #e2ebef; border-radius: 12px; background: #f7fbfd; }
+html[data-page-shell="doctor"] .startup-doctor-workspace > div:last-child { background: #eef5f8; }
+html[data-page-shell="dispatcher"] #main { width: min(1480px, calc(100% - 64px)); }
+html[data-page-shell="dispatcher"] .startup-dispatcher-metrics { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; }
+html[data-page-shell="dispatcher"] .startup-dispatcher-metrics i { height: 76px; border: 1px solid #d8e7ee; border-radius: 16px; background: #fff; }
+html[data-page-shell="dispatcher"] .startup-dispatcher-workspace { display: grid; grid-template-columns: minmax(0, 1fr) minmax(340px, .9fr); gap: 16px; margin-top: 16px; }
+html[data-page-shell="dispatcher"] .startup-dispatcher-workspace i { min-height: 350px; }
+html[data-page-shell="command-center"] .startup-command-nav { display: flex; gap: 10px; padding: 9px; border: 1px solid #d8e7ef; border-radius: 14px; background: #fff; }
+html[data-page-shell="command-center"] .startup-command-nav i { width: 15%; height: 30px; border-radius: 8px; }
+html[data-page-shell="command-center"] .startup-command-alert { height: 90px; margin: 18px 0; background: #f4f9fb; }
+html[data-page-shell="command-center"] .startup-command-panels { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; }
+html[data-page-shell="command-center"] .startup-command-panels i { min-height: 260px; }
+html[data-page-shell="about"] .startup-about > div { width: min(920px, calc(100% - 48px)); margin: 45px auto; }
+html[data-page-shell="about"] .startup-about i { display: block; width: 66%; height: 40px; margin-bottom: 18px; }
+html[data-page-shell="about"] .startup-about i:nth-child(2) { width: 90%; height: 15px; }
+html[data-page-shell="about"] .startup-about i:nth-child(3) { width: 82%; height: 15px; }
+html[data-page-shell="about"] .startup-about-card { height: 180px; margin-top: 32px; border: 1px solid #d9e8ee; border-radius: 18px; background: #fff; }
+html[data-page-shell="admin"] #main { width: min(1000px, calc(100% - 48px)); }
+html[data-page-shell="admin"] .startup-admin-heading { display: grid; gap: 12px; width: min(640px, 100%); margin: 36px 0 26px; }
+html[data-page-shell="admin"] .startup-admin-heading i { height: 28px; border-radius: 10px; }
+html[data-page-shell="admin"] .startup-admin-heading i:first-child { width: 68%; height: 54px; }
+html[data-page-shell="admin"] .startup-admin-heading i:last-child { width: 76%; height: 14px; }
+html[data-page-shell="admin"] .startup-admin-note { width: 100%; height: 94px; margin-bottom: 20px; border: 1px solid #d7e6ee; border-left: 5px solid #d49a37; border-radius: 12px; background: #fffaf0; }
+html[data-page-shell="admin"] .startup-admin-card { display: grid; gap: 14px; padding: 20px; border: 1px solid #d7e6ee; border-radius: 14px; background: #fff; }
+html[data-page-shell="admin"] .startup-admin-card i { height: 18px; }
+html[data-page-shell="admin"] .startup-admin-card i:first-child { width: 42%; height: 27px; }
+html[data-page-shell="admin"] .startup-admin-card i:last-child { width: 38%; height: 40px; }
+@media (max-width: 700px) {
+  html[data-page-shell="doctor"] #main, html[data-page-shell="dispatcher"] #main, html[data-page-shell="command-center"] #main { width: calc(100% - 32px); }
+  html[data-page-shell] .site-header { width: calc(100% - 16px); min-height: 64px; padding: 7px 8px; }
+  html[data-page-shell="home"] .startup-brandbar, html[data-page-shell="manual"] .startup-brandbar { width: calc(100% - 32px); min-height: 62px; }
+  html[data-page-shell="patient"] .startup-brandbar, html[data-page-shell="profile"] .startup-brandbar { min-height: 64px; padding-inline: 16px; }
+  html[data-page-shell] .smartcareops-brand { font-size: 15px; }
+  html[data-page-shell] .smartcareops-brand-mark { width: 31px; height: 31px; flex-basis: 31px; }
+  html[data-page-shell="home"] .startup-home-hero { grid-template-columns: 1fr; width: calc(100% - 40px); min-height: 0; gap: 24px; padding: 56px 0 36px; }
+  html[data-page-shell="home"] .startup-home-hero > div:first-child i { height: 35px; }
+  html[data-page-shell="home"] .startup-visual { min-height: 310px; width: min(100%, 360px); justify-self: center; }
+  html[data-page-shell="home"] .startup-home-portals { grid-template-columns: 1fr 1fr; width: calc(100% - 40px); gap: 10px; }
+  html[data-page-shell="home"] .startup-home-portals i { height: 105px; }
+  html[data-page-shell="manual"] .startup-manual-hero { width: calc(100% - 32px); min-height: 240px; margin: 24px auto; padding: 25px; }
+  html[data-page-shell="manual"] .startup-manual-hero i:first-child { width: 100%; height: 36px; }
+  html[data-page-shell="manual"] .startup-manual-hero i:nth-child(2) { width: 84%; height: 36px; }
+  html[data-page-shell="manual"] .startup-manual-content { display: block; width: calc(100% - 32px); }
+  html[data-page-shell="manual"] .startup-manual-content i:first-child { display: none; }
+  html[data-page-shell="manual"] .startup-manual-content i { min-height: 130px; margin-bottom: 12px; }
+  html[data-page-shell="patient"] .startup-patient-layout, html[data-page-shell="profile"] .startup-patient-layout { display: block; min-height: calc(100vh - 64px); }
+  html[data-page-shell="patient"] .startup-patient-layout aside, html[data-page-shell="profile"] .startup-patient-layout aside { display: none; }
+  html[data-page-shell="patient"] .startup-patient-layout > div, html[data-page-shell="profile"] .startup-patient-layout > div { padding: 24px 16px 40px; }
+  html[data-page-shell="patient"] .startup-patient-cards, html[data-page-shell="profile"] .startup-profile-cards { grid-template-columns: 1fr; }
+  html[data-page-shell="patient"] .startup-patient-cards i, html[data-page-shell="profile"] .startup-profile-cards i { min-height: 150px; }
+  html[data-page-shell="doctor"] .startup-doctor, html[data-page-shell="dispatcher"] .startup-dispatcher, html[data-page-shell="command-center"] .startup-command-center { padding-top: 14px; }
+  html[data-page-shell="doctor"] .startup-doctor-workspace { display: block; min-height: 0; }
+  html[data-page-shell="doctor"] .startup-doctor-workspace > div:last-child { display: none; }
+  html[data-page-shell="dispatcher"] .startup-dispatcher-metrics { gap: 7px; }
+  html[data-page-shell="dispatcher"] .startup-dispatcher-metrics i { height: 64px; }
+  html[data-page-shell="dispatcher"] .startup-dispatcher-workspace { grid-template-columns: 1fr; }
+  html[data-page-shell="dispatcher"] .startup-dispatcher-workspace i { min-height: 230px; }
+  html[data-page-shell="command-center"] .startup-command-nav { gap: 5px; overflow: hidden; }
+  html[data-page-shell="command-center"] .startup-command-nav i { flex: 1 0 14%; }
+  html[data-page-shell="command-center"] .startup-command-panels { grid-template-columns: 1fr; }
+  html[data-page-shell="command-center"] .startup-command-panels i { min-height: 120px; }
+  html[data-page-shell="command-center"] .startup-command-panels i:not(:first-child) { display: none; }
+}
+html[data-page-shell] .startup-brandbar { display: none; }
+@media (prefers-reduced-motion: reduce) { html[data-page-shell] * { scroll-behavior: auto !important; animation: none !important; transition: none !important; } }

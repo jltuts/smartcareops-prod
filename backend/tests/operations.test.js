@@ -4,6 +4,8 @@ import { operationsFixture, operationsAssessment } from './operations-fixtures.j
 import { createOperationsService } from '../src/operations/service.js';
 import { createOperationsModel } from '../src/operations/model.js';
 import { validateAssessment, validateOperationalAssessment } from '../src/operations/contracts.js';
+import { configuredOperationsStore } from '../src/operations/storage.js';
+import { createMemoryCaseStore } from '../src/cases/store.js';
 const capacity = requestId => ({ requestId, hospitalId: 'HOSP-001', monitoredBedsAvailable: 0, expectedVersion: 2 });
 test('hospital snapshot aggregates four cases without raw patient facts', async () => {
   const f = await operationsFixture(); await f.service.tick(); const view = await f.service.view();
@@ -11,6 +13,17 @@ test('hospital snapshot aggregates four cases without raw patient facts', async 
   assert.equal(view.plans.length, 1); assert.equal(view.resourceEvidence.length, 7); assert.equal(view.approvals.length, 2);
   assert.equal(view.receipts.length, 2); assert.equal(JSON.stringify(view).includes('Demo Alex'), false);
   assert.equal(view.meta.agentType, 'hospital_operations');
+});
+test('operations view exposes the sanitized demo boundary without making it a dependency', async () => {
+  const boundary = { event: 'Routine intake recorded', projection: 'Operations projection recorded', routing: 'Kept in normal care', hospitalOperationsTriggered: false, classifiedAt: '2026-10-11T01:00:00.000Z' };
+  const first = await operationsFixture({ readDemoBoundary: async () => boundary });
+  assert.deepEqual((await first.service.view()).demoBoundary, boundary);
+  await first.service.close();
+  const second = await operationsFixture({ readDemoBoundary: async () => { throw new Error('projection unavailable'); } });
+  const view = await second.service.view();
+  assert.equal(view.demoBoundary, null);
+  assert.equal(view.members.length, 4);
+  await second.service.close();
 });
 test('capacity event replans, preserves immutable plan and receipts, supersedes approval', async () => {
   const f = await operationsFixture(); await f.service.tick(); const before = await f.service.view();
@@ -103,9 +116,32 @@ test('finite run budget blocks further model calls and preserves the last plan',
   const after = await f.service.view(); assert.deepEqual(after.plans, before.plans); assert.equal(after.meta.modelCalls, before.meta.modelCalls);
   assert.equal(after.meta.ready, false); assert.equal(after.meta.lastError.code, 'OPERATIONS_BUDGET_EXHAUSTED');
 });
+test('explicit demo reset restores baseline and a fresh bounded budget without deleting history', async () => {
+  const f = await operationsFixture(); await f.service.tick();
+  await f.service.changeCapacity(capacity('zero-before-reset')); await f.service.tick();
+  const before = await f.service.view();
+  await f.store.transaction('OPS-HOSP-001', state => { state.meta.runCount = 8; state.meta.modelCalls = 8; state.meta.lastError = { code: 'OPERATIONS_BUDGET_EXHAUSTED' }; });
+  assert.deepEqual(await f.service.resetDemo({ requestId: 'reset-demo' }), { reset: true, monitoredBedsAvailable: 2 });
+  const reset = await f.service.view();
+  assert.equal(reset.currentSnapshot.capacity.monitoredBedsAvailable, 2);
+  assert.equal(reset.meta.runBudgetStart, 8); assert.equal(reset.meta.modelCallBudgetStart, 8); assert.equal(reset.meta.lastError, null);
+  assert.equal(reset.plans.length, before.plans.length); assert.equal(reset.receipts.length, before.receipts.length);
+  assert.ok(reset.approvals.filter(item => ['pending', 'approved'].includes(item.status)).length === 0);
+  await f.service.changeCapacity({ requestId: 'zero-after-reset', hospitalId: 'HOSP-001', monitoredBedsAvailable: 0, expectedVersion: Number(reset.currentSnapshot.resourceVersion.split(':')[1]) });
+  await f.service.tick(); const after = await f.service.view();
+  assert.equal(after.plans.length, before.plans.length + 1); assert.equal(after.currentSnapshot.capacity.monitoredBedsAvailable, 0);
+});
 test('zero beds requires an explicitly cited supported alternative, not retrieval alone', () => {
   const context = { snapshot: { snapshotId: 's', capacity: { monitoredBedsAvailable: 0 } }, evidenceRefs: ['s', 'r'],
     resourceInvestigation: [{ toolName: 'get_hospital_capacity', evidenceId: 'r', result: { hospitalId: 'HOSP-003', monitoredBedsAvailable: 1 } }] };
   const assessment = operationsAssessment(context); assert.doesNotThrow(() => validateOperationalAssessment(assessment, context));
   assessment.observations = assessment.observations.slice(0, 1); assert.throws(() => validateOperationalAssessment(assessment, context), { code: 'OPERATIONS_ALTERNATIVE_EVIDENCE_REQUIRED' });
+});
+test('production runtime opens the Operations store only through the reviewed M57 gate', async () => {
+  const caseStore = createMemoryCaseStore();
+  const base = { APP_ENV: 'development', NODE_ENV: 'production', CASE_STORE: 'memory' };
+  assert.throws(() => configuredOperationsStore(base, caseStore), /M10 is DEV only/);
+  const store = configuredOperationsStore({ ...base, M57_REVIEWED_COORDINATION_ENABLED: 'true' }, caseStore);
+  assert.equal(store.storage, 'memory');
+  await store.close();
 });

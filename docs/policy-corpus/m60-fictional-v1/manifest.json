@@ -1,0 +1,34 @@
+{
+  "schemaVersion": "1.0",
+  "corpusId": "smartcareops-fictional-clinical-review",
+  "version": "m60-fictional-v1",
+  "status": "approved",
+  "approvedBy": "SmartCareOps product owner",
+  "approvedAt": "2026-10-16T03:47:33.327+08:00",
+  "documents": [
+    {
+      "documentId": "SCO-DEMO-EVIDENCE-01",
+      "title": "Fictional Evidence and Provenance Policy",
+      "file": "01-evidence-provenance.md",
+      "contentDigest": "e35867e4deb0b3b2a7943f3309dad84b704946b616be384a2e54d94f88cfc403"
+    },
+    {
+      "documentId": "SCO-DEMO-LAB-02",
+      "title": "Fictional Verified Laboratory Evidence Policy",
+      "file": "02-verified-laboratory-evidence.md",
+      "contentDigest": "ef9ab571697e681c427161e622c9ec42dbb2881edc8d1240a38b8e5f1acb7ba1"
+    },
+    {
+      "documentId": "SCO-DEMO-UNCERTAINTY-03",
+      "title": "Fictional Uncertainty and Conflict Policy",
+      "file": "03-uncertainty-conflict.md",
+      "contentDigest": "c998f819b29f3a65caca18d6747e9e7d9322b2824a97c763de828b78da6e3696"
+    },
+    {
+      "documentId": "SCO-DEMO-BOUNDARY-04",
+      "title": "Fictional Review-Only Boundary Policy",
+      "file": "04-review-only-boundary.md",
+      "contentDigest": "87e2ba0ce5640927fe120d128a22ccaa217ecfda0df8169304c81b4692838e37"
+    }
+  ]
+}

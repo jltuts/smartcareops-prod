@@ -1,0 +1,104 @@
+{
+  "schemaVersion": "1.0",
+  "corpusId": "smartcareops-fictional-clinical-review",
+  "version": "m60-fictional-v1",
+  "manifestDigest": "831f6962ce002e0c5e6d5ea2303c469f80e188e3398fc2cd65207b25350f5356",
+  "chunks": [
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-EVIDENCE-01-01",
+      "documentId": "SCO-DEMO-EVIDENCE-01",
+      "version": "m60-fictional-v1",
+      "section": "1. Evidence classes",
+      "contentDigest": "e35867e4deb0b3b2a7943f3309dad84b704946b616be384a2e54d94f88cfc403",
+      "passage": "## 1. Evidence classes\n\nKeep these classes separate in every assessment:\n\n- Patient-reported facts contain only what the Patient supplied.\n- Doctor-verified laboratory evidence contains only the selected verified\n  revision and preserves its printed values, units, and reference ranges.\n- AI interpretation contains hypotheses, uncertainty, and review suggestions.\n\nAI interpretation must never be presented as Patient-reported or\nDoctor-verified evidence."
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-EVIDENCE-01-02",
+      "documentId": "SCO-DEMO-EVIDENCE-01",
+      "version": "m60-fictional-v1",
+      "section": "2. Evidence references",
+      "contentDigest": "e35867e4deb0b3b2a7943f3309dad84b704946b616be384a2e54d94f88cfc403",
+      "passage": "## 2. Evidence references\n\nEvery evidence-bearing statement must cite a reference supplied by an approved\ntool for the current run. The agent must not invent a reference, use a reference\nfrom another case, or cite a source that retrieval did not return."
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-EVIDENCE-01-03",
+      "documentId": "SCO-DEMO-EVIDENCE-01",
+      "version": "m60-fictional-v1",
+      "section": "3. Ambiguity",
+      "contentDigest": "e35867e4deb0b3b2a7943f3309dad84b704946b616be384a2e54d94f88cfc403",
+      "passage": "## 3. Ambiguity\n\nUnclear, missing, or mistranscribed information remains unresolved. The agent\nmust identify the uncertainty and request human review rather than silently\ncorrecting or completing the evidence."
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-LAB-02-01",
+      "documentId": "SCO-DEMO-LAB-02",
+      "version": "m60-fictional-v1",
+      "section": "1. Verification boundary",
+      "contentDigest": "ef9ab571697e681c427161e622c9ec42dbb2881edc8d1240a38b8e5f1acb7ba1",
+      "passage": "## 1. Verification boundary\n\nOnly a laboratory revision explicitly corrected and confirmed by a Doctor may\nbe supplied to the Clinical Review Agent. An extracted, draft, superseded, or\nunverified revision is not an approved clinical input."
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-LAB-02-02",
+      "documentId": "SCO-DEMO-LAB-02",
+      "version": "m60-fictional-v1",
+      "section": "2. Immutable binding",
+      "contentDigest": "ef9ab571697e681c427161e622c9ec42dbb2881edc8d1240a38b8e5f1acb7ba1",
+      "passage": "## 2. Immutable binding\n\nBind every review to the report identifier, verified revision, and evidence\ndigest. Recheck that binding after model processing. If the revision or digest\nchanges, reject the result as stale."
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-LAB-02-03",
+      "documentId": "SCO-DEMO-LAB-02",
+      "version": "m60-fictional-v1",
+      "section": "3. Fidelity",
+      "contentDigest": "ef9ab571697e681c427161e622c9ec42dbb2881edc8d1240a38b8e5f1acb7ba1",
+      "passage": "## 3. Fidelity\n\nPreserve the verified printed result, unit, reference range, and source\nlocation exactly. Do not convert units, fill missing values, infer an absent\nmeasurement, or claim that a value establishes a diagnosis."
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-UNCERTAINTY-03-01",
+      "documentId": "SCO-DEMO-UNCERTAINTY-03",
+      "version": "m60-fictional-v1",
+      "section": "1. Missing information",
+      "contentDigest": "c998f819b29f3a65caca18d6747e9e7d9322b2824a97c763de828b78da6e3696",
+      "passage": "## 1. Missing information\n\nState material missing information explicitly. Do not replace unavailable\nevidence with general knowledge, assumptions, or information from another run."
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-UNCERTAINTY-03-02",
+      "documentId": "SCO-DEMO-UNCERTAINTY-03",
+      "version": "m60-fictional-v1",
+      "section": "2. Conflicting evidence",
+      "contentDigest": "c998f819b29f3a65caca18d6747e9e7d9322b2824a97c763de828b78da6e3696",
+      "passage": "## 2. Conflicting evidence\n\nWhen approved sources conflict, cite every conflicting passage, describe the\nconflict, and retain human review. The agent must not choose one source and hide\nthe other or manufacture a resolution."
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-UNCERTAINTY-03-03",
+      "documentId": "SCO-DEMO-UNCERTAINTY-03",
+      "version": "m60-fictional-v1",
+      "section": "3. Retrieval failure",
+      "contentDigest": "c998f819b29f3a65caca18d6747e9e7d9322b2824a97c763de828b78da6e3696",
+      "passage": "## 3. Retrieval failure\n\nEmpty, unavailable, stale, or invalid policy retrieval is a visible evidence\nlimitation. It must not weaken the evidence rules or permit an unsupported\nclinical statement."
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-BOUNDARY-04-01",
+      "documentId": "SCO-DEMO-BOUNDARY-04",
+      "version": "m60-fictional-v1",
+      "section": "1. Purpose",
+      "contentDigest": "87e2ba0ce5640927fe120d128a22ccaa217ecfda0df8169304c81b4692838e37",
+      "passage": "## 1. Purpose\n\nThe Clinical Review Agent produces a structured reasoning aid for human review.\nIt does not provide a diagnosis, treatment instruction, prescription, medical\norder, or assurance that a Patient is clinically clear."
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-BOUNDARY-04-02",
+      "documentId": "SCO-DEMO-BOUNDARY-04",
+      "version": "m60-fictional-v1",
+      "section": "2. No operational authority",
+      "contentDigest": "87e2ba0ce5640927fe120d128a22ccaa217ecfda0df8169304c81b4692838e37",
+      "passage": "## 2. No operational authority\n\nThe agent cannot approve its own result or change Patient evidence, laboratory\nvalues, routing, appointments, case status, notifications, handoffs, dispatch,\nor another operational record."
+    },
+    {
+      "evidenceRef": "POLICY-SCO-DEMO-BOUNDARY-04-03",
+      "documentId": "SCO-DEMO-BOUNDARY-04",
+      "version": "m60-fictional-v1",
+      "section": "3. Human and deterministic authority",
+      "contentDigest": "87e2ba0ce5640927fe120d128a22ccaa217ecfda0df8169304c81b4692838e37",
+      "passage": "## 3. Human and deterministic authority\n\nDoctor review remains required. Existing deterministic emergency rules,\nauthorization checks, evidence validation, revision checks, and approval gates\nremain authoritative and cannot be overridden by retrieved policy text or an\nagent response."
+    }
+  ]
+}

@@ -15,3 +15,65 @@
 .profile-save { justify-self: start; border: 0; border-radius: 999px; padding: 12px 20px; background: #176b4e; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
 .profile-save:disabled { opacity: .6; cursor: wait; }
 @media (max-width: 680px) { .profile-page fieldset, .profile-account dl { grid-template-columns: 1fr; } }
+
+/* Patient Profile presentation; the existing edit form remains intact. */
+body:has(.profile-page) { background: #f7fbff; color: #12344d; }
+body:has(.profile-page) > .site-footer { display: none; }
+body:has(.profile-page) > main { width: 100%; margin: 0; }
+.profile-page { max-width: none; min-height: 100vh; padding: 0; background: #f7fbff; color: #12344d; }
+.profile-page [hidden] { display: none !important; }
+.profile-page .patient-topbar { min-height: 68px; border-bottom-color: #dceaf2; }
+.profile-page .patient-sidebar { border-right-color: #dceaf2; }
+.profile-page .patient-sidebar nav a { color: #557286; }
+.profile-page .patient-sidebar nav a:hover { background: #e8f5fc; color: #094d81; }
+.profile-page .patient-sidebar nav a.active { color: #094d81; }
+.profile-main { width: 100%; max-width: 1500px; padding: 32px clamp(22px, 3vw, 44px) 76px; }
+.profile-heading { display: flex; align-items: flex-end; justify-content: space-between; gap: 24px; margin-bottom: 22px; }
+.profile-heading .eyebrow { margin: 0 0 5px; color: #3679a1; font-size: 10px; letter-spacing: .13em; }
+.profile-heading h1 { margin: 0; color: #0b3156; font-size: clamp(31px, 2.8vw, 43px); line-height: 1.12; }
+.profile-heading .role-subtitle { margin: 8px 0 0; color: #4f7390; font-size: 15px; }
+#profile-today { flex: none; margin-bottom: 5px; color: #597991; font-size: 12px; }
+#profile-message { margin: 0 0 14px; color: #286887; font-size: 13px; }
+#profile-message:empty { display: none; }
+.profile-identity-card { position: relative; display: flex; align-items: center; gap: 26px; min-height: 166px; padding: 24px 30px; overflow: hidden; border: 1px solid #c9e5f6; border-radius: 18px; background: linear-gradient(118deg, #eef8ff 0%, #e2f3ff 64%, #d6edfc 100%); box-shadow: 0 13px 34px rgb(27 89 133 / 7%); }
+.profile-identity-card::after { content: ''; position: absolute; right: -90px; top: -95px; width: 55%; height: 240px; border: 1px solid rgb(109 183 229 / 18%); border-radius: 50%; transform: rotate(-19deg); pointer-events: none; }
+.profile-photo { position: relative; z-index: 1; display: grid; place-items: center; flex: none; width: 112px; height: 112px; overflow: hidden; border-radius: 50%; background: #dceaf3; color: #397da4; }
+.profile-photo img { width: 100%; height: 100%; object-fit: cover; }
+.profile-photo .patient-nav-icon { width: 47px; height: 47px; }
+.profile-identity-card > div { position: relative; z-index: 1; display: grid; gap: 2px; min-width: 0; }
+.profile-identity-card strong { color: #0b3156; font-size: clamp(21px, 2vw, 28px); line-height: 1.2; overflow-wrap: anywhere; }
+.profile-identity-card div span { color: #4a7090; font-size: 14px; }
+.profile-detail-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px; margin-top: 20px; }
+.profile-detail-card { min-width: 0; padding: 23px 25px; border: 1px solid #d3e5f1; border-radius: 17px; background: #fff; box-shadow: 0 11px 29px rgb(27 89 133 / 5%); }
+.profile-detail-card h2 { margin: 0 0 20px; color: #0b3156; font-size: 18px; }
+.profile-detail-card dl { margin: 0; }
+.profile-detail-card dl div + div { margin-top: 16px; padding-top: 15px; border-top: 1px solid #e0edf5; }
+.profile-detail-card dt { color: #547895; font-size: 12px; }
+.profile-detail-card dd { margin: 3px 0 0; color: #123b60; font-size: 14px; font-weight: 650; overflow-wrap: anywhere; }
+.profile-edit, .profile-page .profile-save { display: inline-flex; justify-content: center; align-items: center; min-height: 46px; margin-top: 20px; padding: 11px 24px; border: 0; border-radius: 10px; background: #087bd0; color: #fff; font: inherit; font-size: 14px; font-weight: 750; cursor: pointer; box-shadow: 0 9px 19px rgb(10 112 197 / 18%); }
+.profile-edit:hover, .profile-page .profile-save:hover { background: #076bb5; }
+.profile-support-card { display: flex; align-items: center; gap: 16px; min-height: 95px; margin-top: 19px; padding: 18px 22px; border: 1px solid #d3e8f4; border-radius: 16px; background: #f5fbff; color: #0b3156; text-decoration: none; }
+.profile-support-icon { display: grid; place-items: center; flex: none; width: 50px; height: 50px; border-radius: 50%; background: #dff1ff; color: #0874be; }
+.profile-support-icon .patient-nav-icon { width: 23px; height: 23px; }
+.profile-support-card > span:nth-child(2) { display: grid; }
+.profile-support-card strong { font-size: 14px; }
+.profile-support-card small { color: #0874be; font-size: 12px; }
+.profile-support-card > span:last-child { margin-left: auto; color: #0874be; font-size: 20px; }
+.profile-support-card:hover { border-color: #91c5e5; background: #edf8ff; }
+.profile-page form { gap: 18px; }
+.profile-page fieldset { gap: 15px; padding: 22px; border-color: #d3e5f1; border-radius: 17px; background: #fff; }
+.profile-page legend { color: #0b3156; }
+.profile-page label { font-size: 13px; }
+.profile-page input { min-width: 0; border-color: #adc9d9; color: #12344d; }
+.profile-page input:focus { outline-color: rgb(26 133 203 / 23%); border-color: #187ec3; }
+.profile-context { color: #607b8e; font-size: 12px; }
+.profile-account dl div { background: #f4f9fc; }
+.profile-form-actions { display: flex; align-items: center; flex-wrap: wrap; gap: 10px; }
+.profile-page .profile-save { margin-top: 0; }
+.profile-cancel { min-height: 46px; padding: 11px 22px; border: 1px solid #bad2e1; border-radius: 10px; background: #fff; color: #275a7b; font: inherit; font-size: 14px; font-weight: 700; cursor: pointer; }
+.profile-page :is(a, button, summary):focus-visible { outline: 3px solid #147dc3; outline-offset: 3px; }
+.profile-page .patient-mobile-nav a:first-child { color: #57758d; font-weight: 400; }
+.profile-page .patient-mobile-nav a[aria-current="page"] { color: #086eb4; font-weight: 800; }
+@media (max-width: 980px) { .profile-page .patient-shell { display: block; }.profile-page .patient-sidebar { display: none; }.profile-main { max-width: 800px; margin-inline: auto; } }
+@media (max-width: 700px) { .profile-page .patient-topbar { min-height: 64px; padding-inline: 16px; }.profile-main { padding: 22px 14px calc(92px + env(safe-area-inset-bottom)); }.profile-heading { display: block; margin-bottom: 17px; }.profile-heading h1 { font-size: 29px; }.profile-heading .role-subtitle { font-size: 13px; }#profile-today { display: none; }.profile-identity-card { min-height: 110px; gap: 14px; padding: 16px; }.profile-photo { width: 80px; height: 80px; }.profile-photo .patient-nav-icon { width: 36px; height: 36px; }.profile-identity-card strong { font-size: 19px; }.profile-detail-grid, .profile-page fieldset, .profile-account dl { grid-template-columns: 1fr; }.profile-detail-card { padding: 19px 20px; }.profile-detail-card h2 { margin-bottom: 14px; font-size: 17px; }.profile-edit { width: 100%; }.profile-support-card { min-height: 76px; margin-top: 14px; padding: 12px; }.profile-support-icon { width: 42px; height: 42px; } }
+@media (max-width: 380px) { .profile-main { padding-inline: 12px; }.profile-page .patient-topbar-actions { gap: 8px; }.profile-page .patient-help-link { font-size: 11px; }.profile-page .patient-account-menu summary { font-size: 11px; }.profile-identity-card { padding: 13px; }.profile-photo { width: 68px; height: 68px; } }

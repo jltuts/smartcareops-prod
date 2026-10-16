@@ -1,0 +1,44 @@
+import { test, expect } from '@playwright/test';
+
+test('Technology page inventories current Google services and the application stack', async ({ page }) => {
+  await page.goto('/technology');
+  await expect(page.locator('.site-header .smartcareops-brand')).toBeVisible();
+  await expect(page.locator('.landing-nav-links a[href="/technology"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.locator('.technology-card')).toHaveCount(17);
+  await expect(page.locator('.technology-card img')).toHaveCount(14);
+  await expect(page.getByRole('heading', { name: 'Gemini Live API', exact: true })).toBeVisible();
+  await expect(page.locator('#google-ai')).toContainText('gemini-3.8-live');
+  await expect(page.locator('#google-ai')).toContainText('gemini-3.6-flash');
+  await expect(page.locator('#google-ai')).toContainText('gemini-3.8-flash');
+  await expect(page.locator('#google-ai .technology-models span')).toHaveCount(3);
+  await expect(page.getByRole('heading', { name: 'Gemini Enterprise Agent Platform', exact: true })).toBeVisible();
+  await expect(page.locator('#managed-agent-governance')).toContainText('gemini-3.6-flash · clinical review agent');
+  await expect(page.locator('#managed-agent-governance')).toContainText('named fictional demo cases');
+  await expect(page.locator('#managed-agent-governance')).toContainText('existing clinical model is the automatic fallback');
+  await expect(page.locator('#managed-agent-governance')).toContainText('approved fictional policy corpus');
+  await expect(page.locator('#managed-agent-governance')).toContainText('Model Armor');
+  await expect(page.locator('#managed-agent-governance .technology-status')).toHaveCount(3);
+  await expect(page.getByRole('heading', { name: 'Intelligent Data Processing (IDP)', exact: true })).toBeVisible();
+  await expect(page.locator('#google-ai')).not.toContainText('Intelligent Data Processing');
+  await expect(page.locator('#smartcareops-capabilities')).toContainText('Application workflows built by SmartCareOps and powered by Gemini.');
+  await expect(page.locator('#smartcareops-capabilities')).toContainText('Doctors compare the original, correct any values, and verify the results before requesting a review-only assessment.');
+  await expect(page.locator('#smartcareops-capabilities')).toContainText('gemini-3.6-flash · laboratory report extraction');
+  await expect(page.getByRole('heading', { name: 'Pub/Sub', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Cloud Run', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Google Maps Platform', exact: true })).toBeVisible();
+  await expect(page.locator('.technology-stack')).toContainText('Vite');
+  await expect(page.locator('.technology-stack')).toContainText('Terraform');
+  await expect(page.locator('.technology-stack')).toContainText('GitHub');
+  await expect(page.getByRole('link', { name: /See how SmartCareOps works/ })).toHaveAttribute('href', '/howitworks');
+  await expect(page.getByRole('link', { name: /Start Patient Intake/ })).toHaveAttribute('href', '/patient');
+  await expect(page.getByRole('link', { name: /Read the User Manual/ })).toHaveAttribute('href', '/manual');
+  await expect(page.locator('.site-footer')).toBeHidden();
+});
+
+test('Technology page stays within the viewport on desktop and mobile', async ({ page }) => {
+  await page.goto('/technology');
+  const dimensions = await page.evaluate(() => ({ scrollWidth: document.documentElement.scrollWidth, innerWidth: window.innerWidth }));
+  expect(dimensions.scrollWidth).toBeLessThanOrEqual(dimensions.innerWidth);
+  await expect(page.locator('.technology-stack')).toBeVisible();
+  await expect(page.locator('.technology-actions')).toBeVisible();
+});

@@ -7,6 +7,10 @@ const finalAnswer = new RegExp(`^(?:(?:um|uh|well|okay|ok) )*(?:(?:no|nope|nah)(
 const additionalIntent = /\b(?:wait|but|except|actually|forgot|one more thing|not done)\b/;
 const normalizeAnswer = text => text.toLowerCase().replace(/[’‘]/g, "'")
   .replace(/[.,!?;:…—–-]/g, ' ').replace(/\s+/g, ' ').trim();
+export function isFinalAnswer(text) {
+  const normalized = normalizeAnswer(text);
+  return !additionalIntent.test(normalized) && finalAnswer.test(normalized);
+}
 export function createCompletionState() {
   let state = 'collecting', answer = '', output = '', answeringFinal = false, approved = false, revision = 0, modelTurn = false;
   let finalConfirmationProcessed = false;
@@ -15,14 +19,14 @@ export function createCompletionState() {
     if (!answer) return;
     // Only a reply begun in awaiting_final_confirmation can authorize finishing.
     // Keep the ASR homophone narrow: "know" alone is never treated as "no".
-    const normalized = answeringFinal ? normalizeAnswer(answer) : '';
     finalConfirmationProcessed ||= answeringFinal;
-    approved = answeringFinal && !additionalIntent.test(normalized) && finalAnswer.test(normalized);
+    approved = answeringFinal && isFinalAnswer(answer);
     state = 'collecting'; answer = ''; answeringFinal = false;
     return approved;
   }
   return {
     get state() { return state; }, get id() { return revision; },
+    get confirmed() { return approved || state === 'pending_completion' || state === 'completed'; },
     interrupt() { if (state === 'completed') return false; const pending = state === 'pending_completion'; reopen(); return pending; },
     observe(content) {
       if (state === 'completed') return {};

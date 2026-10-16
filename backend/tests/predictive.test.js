@@ -15,6 +15,18 @@ const interpretation = resource => ({ topBottleneck: resource || 'No significant
   why: ['The supplied deterministic forecast shows this pressure trajectory.'], whyNot: ['No facility-specific transport or admission evidence is modeled.'],
   uncertainty: ['These are synthetic projections, not real hospital conditions.'], whatWouldChange: ['A new M15 simulation state could change the projected pressure.'] });
 
+function assertNoUndefined(value) {
+  if (value === undefined) throw new Error('Cannot encode value undefined');
+  if (value && typeof value === 'object') for (const child of Object.values(value)) assertNoUndefined(child);
+}
+
+function createFirestoreHarness() {
+  const docs = new Map();
+  const db = { collection(name) { assert.equal(name, 'simulationStates'); return { doc(id) { const key = `${name}/${id}`; return { key, async get() { const value = docs.get(key); return { exists: !!value, data: () => structuredClone(value) }; } }; } }; }, async terminate() {},
+    async runTransaction(callback) { return callback({ async get(ref) { const value = docs.get(ref.key); return { exists: !!value, data: () => structuredClone(value) }; }, set(ref, value) { assertNoUndefined(value); docs.set(ref.key, structuredClone(value)); } }); } };
+  return { db, docs };
+}
+
 test('M17 horizons independently project deterministic M15 state without mutating baseline', () => {
   const baseline = createInitialSimulationState({ scenario: 'ed_surge', seed: 41 }); const before = structuredClone(baseline);
   const result = createPredictiveForecast(baseline);
@@ -23,6 +35,14 @@ test('M17 horizons independently project deterministic M15 state without mutatin
   assert.deepEqual(result.horizons.map(h => h.tick), [6, 12, 24]);
   assert.ok(result.horizons.every(h => h.metrics.hospitals.every(site => site.edOccupied >= 0 && site.edOccupied <= site.edEffectiveCapacity && site.icuOccupied >= 0 && site.icuOccupied <= site.icuEffectiveCapacity)));
   assert.ok(result.horizons.every(h => h.metrics.hospitals.every(site => ['normal', 'pressured', 'critical', 'degraded'].includes(site.operationalState))));
+});
+
+test('M17 ED Surge forecast reflects scenario-aware M15 ICU flow', () => {
+  const surge = createPredictiveForecast(createInitialSimulationState({ scenario: 'ed_surge', seed: 41 }));
+  const respiratory = createPredictiveForecast(createInitialSimulationState({ scenario: 'respiratory_outbreak', seed: 41 }));
+  assert.deepEqual(surge.horizons.map(horizon => horizon.metrics.icu.occupied), [28, 30, 34]);
+  assert.ok(respiratory.horizons.every((horizon, index) => horizon.metrics.icu.occupied > surge.horizons[index].metrics.icu.occupied));
+  assert.ok(surge.horizons.every(horizon => horizon.metrics.icu.occupied <= horizon.metrics.icu.effectiveCapacity));
 });
 
 test('M17 bottlenecks come only from forecast transitions and carry supporting metrics', () => {
@@ -34,6 +54,15 @@ test('M17 bottlenecks come only from forecast transitions and carry supporting m
   }
   assert.deepEqual(result.baseline.metrics.hospitals.map(h => h.hospitalId), ['HOSP-001', 'HOSP-002', 'HOSP-003']);
   assert.equal(Object.hasOwn(result.horizons[0].metrics, 'estimatedTimeToCapacity'), false);
+});
+
+test('M17 bottlenecks use M15 hospital IDs and produce Firestore-serializable forecast fields', () => {
+  const result = createPredictiveForecast(createInitialSimulationState({ scenario: 'ed_surge', seed: 7 }));
+  const hospitalIds = new Set(result.baseline.metrics.hospitals.map(hospital => hospital.hospitalId));
+  const facilityRisks = result.bottlenecks.filter(item => item.resource !== 'Ambulance fleet');
+  assert.ok(facilityRisks.length > 0);
+  assert.ok(facilityRisks.every(item => hospitalIds.has(item.facilityId)));
+  assert.doesNotThrow(() => assertNoUndefined(result));
 });
 
 test('Gemini receives generated trajectory metrics and cannot introduce an unmodeled bottleneck', async () => {
@@ -49,9 +78,7 @@ test('Gemini receives generated trajectory metrics and cannot introduce an unmod
 });
 
 test('M17 persists forecast and interpretation across store recreation; provider failure preserves forecast', async () => {
-  const docs = new Map();
-  const db = { collection(name) { assert.equal(name, 'simulationStates'); return { doc(id) { const key = `${name}/${id}`; return { key, async get() { const value = docs.get(key); return { exists: !!value, data: () => structuredClone(value) }; } }; } }; },
-    async runTransaction(callback) { return callback({ async get(ref) { const value = docs.get(ref.key); return { exists: !!value, data: () => structuredClone(value) }; }, set(ref, value) { docs.set(ref.key, structuredClone(value)); } }); } };
+  const { db } = createFirestoreHarness();
   const store = createFirestorePredictiveStore(db), initial = createInitialSimulationState({ scenario: 'ed_surge', seed: 19 });
   const service = createPredictiveService({ simulationStore: createMemorySimulationStore({ initial: () => initial }), store, interpret: async ({ bottlenecks }) => interpretation(bottlenecks[0]?.resource), now: () => 1700000000000 });
   const created = await service.generate(); assert.equal(created.interpretationStatus, 'succeeded');
@@ -63,7 +90,7 @@ test('M17 persists forecast and interpretation across store recreation; provider
 test('Command Center role can generate and restore M17; Patient is denied and simulator/CareTwin state is not executed', async t => {
   const profiles = new Map([['cc', { uid: 'cc', roles: ['patient', 'command_center'], status: 'active' }], ['patient', { uid: 'patient', roles: ['patient'], status: 'active' }]]);
   const simulationStore = createMemorySimulationStore({ initial: () => createInitialSimulationState({ scenario: 'ed_surge', seed: 3 }) });
-  const store = createMemoryPredictiveStore();
+  const { db } = createFirestoreHarness(); const store = createFirestorePredictiveStore(db);
   const service = createPredictiveService({ simulationStore, store, interpret: async ({ bottlenecks }) => interpretation(bottlenecks[0]?.resource) });
   const api = createApiServer({ caseStore: createMemoryCaseStore(), predictiveEnabled: true, predictiveStore: store, predictiveService: service,
     authOptions: { env: { NODE_ENV: 'production', APP_ENV: 'development', DEV_AUTH_UIDS: '', DEV_PATIENT_UIDS: '' }, userProfileStore: createMemoryUserProfileStore(profiles), verifyToken: async token => { if (token === 'invalid') throw new Error('bad token'); return { uid: token, firebase: { sign_in_provider: 'google.com' } }; } } });

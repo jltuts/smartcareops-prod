@@ -29,6 +29,22 @@ test('Firestore capacity/event rollback is atomic', async () => {
   await assert.rejects(f.service.changeCapacity({ requestId: 'fail', hospitalId: 'HOSP-001', monitoredBedsAvailable: 0, expectedVersion: 2 }));
   const state = await f.store.read('OPS-HOSP-001'); assert.equal(state.resourceEnvironment.version, 2); assert.equal(state.events.capacity_fail, undefined);
 });
+test('Firestore capacity change and metadata-only Operations outbox commit or roll back together', async () => {
+  const f = await fixture();
+  const service = createOperationsService({ ...f, store: firestoreOperationsStore(f.db, { capacityOutboxEnabled: true }), capacityEventsEnabled: true });
+  const input = { requestId: 'm57-source', hospitalId: 'HOSP-001', monitoredBedsAvailable: 0, expectedVersion: 2 };
+  f.db.failNext();
+  await assert.rejects(service.changeCapacity(input));
+  assert.equal([...f.db.documents.keys()].some(path => path.startsWith('eventOutbox/')), false);
+  assert.equal((await service.view()).currentSnapshot.capacity.monitoredBedsAvailable, 1);
+
+  await service.changeCapacity(input);
+  const outbox = [...f.db.documents.entries()].filter(([path]) => path.startsWith('eventOutbox/'));
+  assert.equal(outbox.length, 1);
+  assert.equal(outbox[0][1].envelope.eventType, 'hospital.capacity.changed');
+  assert.equal(outbox[0][1].envelope.eventFamily, 'operations');
+  assert.equal(JSON.stringify(outbox[0][1].envelope).includes('monitoredBedsAvailable'), false);
+});
 test('Firestore reservation race between intent and effect supersedes the action', async () => {
   const f = await fixture(), view = await f.service.view(), approval = view.approvals[0]; await f.service.decide(approval.approvalId, 'approved');
   let writes = 0;
@@ -54,4 +70,16 @@ test('expired lease recovers without replaying an uncertain high impact effect',
   assert.equal(view.runs.find(item => item.status === 'interrupted')?.status, 'interrupted');
   assert.equal(view.executions.find(item => item.executionId === 'unknown').status, 'unknown_outcome');
   assert.equal(view.receipts.length, 2);
+});
+
+test('Firestore preserves the metadata-only source link used by Decision Trace', async () => {
+  const f = await fixture(), outboxId = 'a'.repeat(64);
+  await f.service.recordTrigger({ outboxId, eventType: 'hospital.capacity.changed', eventFamily: 'operations', subjectType: 'hospital', occurredAt: '2026-10-09T06:00:00.000Z' });
+  await f.service.requestRun('decision_trace_firestore');
+  await f.service.tick();
+  const fresh = createOperationsService({ ...f, store: firestoreOperationsStore(f.db) });
+  const view = await fresh.view(), trace = view.decisionTrace.find(item => item.planRevisionId === 'OPS-PLAN-2');
+  assert.deepEqual(trace.triggers, [{ eventType: 'hospital.capacity.changed', outboxId, occurredAt: '2026-10-09T06:00:00.000Z' }]);
+  assert.equal(JSON.stringify(trace).includes(f.ids[0]), false);
+  await fresh.close();
 });

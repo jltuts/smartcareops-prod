@@ -25,12 +25,12 @@ test('intake instruction requires individual questions, clarification, and no sy
   assertClarificationRules(systemInstruction);
   assert.match(systemInstruction, /severe breathing difficulty and severe chest pain separately/);
   assert.match(systemInstruction, /Do not diagnose, prescribe medication/);
-  assert.match(systemInstruction, /once enough basic intake information is collected, stop routine questions/);
+  assert.match(systemInstruction, /Only when the backend authorizes review/);
 });
 
 function assertPatientFacingRules(instruction) {
   assert.match(instruction, /Ask exactly one question per turn/);
-  assert.match(instruction, /Start every new intake session with only: "Hello\. I'm the SmartCareOps clinical intake assistant\. May I have your name\?"/);
+  assert.match(instruction, /Start (?:every new intake session with only: "Hello\. I'm the SmartCareOps clinical intake assistant\. May I have your name\?"|each new intake with a brief greeting and ask only for the patient’s name)/);
   assert.match(instruction, /Wait for the patient's answer before asking about symptoms/);
   assert.match(instruction, /Never ask the name and symptoms in the same turn/);
   assert.match(instruction, /For "My name is Mark Lewis Garcia\.", respond: "Thank you, Mark\. What are you feeling today\?"/);
@@ -47,11 +47,15 @@ test('name-first opening waits for a reply and uses a preferred first name natur
 });
 
 test('spoken examples exclude development language and closing is natural', () => {
-  assert.match(systemInstruction, /Never use internal development terms in spoken or transcript responses: prototype, demo, hackathon, M1, milestone, test environment, or proof of concept/);
-  // Inspect patient-facing examples, excluding the instruction that forbids these terms.
+  assert.match(systemInstruction, /Never use internal development terms in spoken or transcript responses: prototype, hackathon, M1, milestone, test environment, or proof of concept/);
+  assert.match(systemInstruction, /preserve its 1-to-10 rating scale in the spoken question/);
+  // Demo hospital information is the sole allowed patient-facing demonstration qualifier.
   for (const [quoted] of systemInstruction.matchAll(/"[^"]+"/g)) {
-    assert.doesNotMatch(quoted, /\b(prototype|demo|hackathon|M\d+|milestone|test environment|proof[ -]of[ -]concept)\b/i);
+    assert.doesNotMatch(quoted, /\b(prototype|hackathon|M\d+|milestone|test environment|proof[ -]of[ -]concept)\b/i);
   }
+  assert.match(systemInstruction, /Describe the result naturally to the patient as demo hospital information/);
+  assert.match(systemInstruction, /State once per facility discussion that capacity is simulated demo information, not live, hospital-verified, or guaranteed/);
+  assert.match(systemInstruction, /Do not invent missing capability, capacity, availability, distance, or options/);
   assert.match(systemInstruction, /I have the basic information I need for your intake/);
   assert.match(systemInstruction, /Only if no urgent issue is confirmed or awaiting clarification/);
   assert.match(systemInstruction, /Is there anything else you'd like to add before we finish\?/);
@@ -111,7 +115,7 @@ async function client(url, autoSettle = true) {
   return { ws, messages };
 }
 
-for (const scenario of ['clean', 'strange', 'corrupted', 'unrecognized', 'validation', 'clarification']) {
+for (const scenario of ['clean', 'strange', 'corrupted', 'validation', 'clarification']) {
   test(`canonical Gemini ending is irreversible: ${scenario}`, async t => {
     let callbacks, release, issued = 0, closed = 0;
     const inputs = [], voiceLogs = [], finalLogs = [];
@@ -285,6 +289,11 @@ test('explicit end before canonical completion still aborts in-flight extraction
   assert.equal(messages.some(message => message.type === 'completion-pending'), false);
 });
 
+test('spoken medication guidance names the visible Show Evidence control', () => {
+  assert.match(systemInstruction, /tap Show Evidence/);
+  assert.doesNotMatch(systemInstruction, /tap Show medicine/);
+});
+
 test('missing key is actionable without connecting upstream', async t => {
   const url = await fixture(t, { apiKey: '', connect: () => assert.fail('Must not connect') });
   const { ws, messages } = await client(url);
@@ -295,13 +304,14 @@ test('missing key is actionable without connecting upstream', async t => {
 
 test('relays PCM and transcripts; end closes upstream; key never sent downstream', async t => {
   let callbacks;
-  let config;
+  let config, connectedModel;
   const inputs = [];
   let closed = 0;
   const url = await fixture(t, {
     apiKey: 'test-server-only-secret',
     connect: async options => {
       callbacks = options.callbacks;
+      connectedModel = options.model;
       config = options.config;
       queueMicrotask(() => callbacks.onmessage({ setupComplete: {} }));
       return { sendRealtimeInput: value => inputs.push(value), close: () => closed++ };
@@ -311,12 +321,13 @@ test('relays PCM and transcripts; end closes upstream; key never sent downstream
   const ready = once(ws, 'message');
   ws.send(JSON.stringify({ type: 'start' }));
   await ready;
+  assert.equal(connectedModel, 'gemini-3.8-live');
   assert.deepEqual(config.inputAudioTranscription, {});
   assert.deepEqual(config.outputAudioTranscription, {});
   assert.match(config.systemInstruction, /Do not diagnose/);
   assertClarificationRules(config.systemInstruction);
   assertPatientFacingRules(config.systemInstruction);
-  assert.deepEqual(inputs[0], { text: 'Please greet the patient and ask only for their name. Then wait for their answer.' });
+  assert.deepEqual(inputs[0], { text: 'Greet the patient in English and ask only for their name. Then wait for their answer.' });
   ws.send(JSON.stringify({ type: 'audio', data: 'AAAAAA==', sampleRate: 48000 }));
   await new Promise(resolve => setTimeout(resolve, 25));
   assert.equal(inputs[1].audio.mimeType, 'audio/pcm;rate=48000');
@@ -331,6 +342,36 @@ test('relays PCM and transcripts; end closes upstream; key never sent downstream
   assert.deepEqual(messages.filter(message => !message.type.startsWith('intake-')).map(message => message.type), ['ready', 'transcript', 'transcript', 'audio', 'turn-complete']);
   assert.equal(closed, 1);
   assert.ok(!JSON.stringify(messages).includes('test-server-only-secret'));
+});
+
+test('ordinary Gemini PCM arrives before transcription while punctuation-only text stays hidden', async t => {
+  let callbacks;
+  const url = await fixture(t, {
+    apiKey: 'fake',
+    connect: async options => {
+      callbacks = options.callbacks;
+      queueMicrotask(() => callbacks.onmessage({ setupComplete: {} }));
+      return { sendRealtimeInput() {}, close() {} };
+    },
+  });
+  const { ws, messages } = await client(url);
+  const ready = once(ws, 'message'); ws.send(JSON.stringify({ type: 'start' })); await ready;
+  const audio = { modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm;rate=24000', data: 'AAAAAA==' } }] } };
+  for (const text of ['.', '...', '…', ' \t ']) {
+    callbacks.onmessage({ serverContent: audio });
+    callbacks.onmessage({ serverContent: { ...audio, outputTranscription: { text, finished: true }, turnComplete: true } });
+  }
+  const fillerPong = once(ws, 'pong'); ws.ping(); await fillerPong;
+  assert.equal(messages.filter(message => message.type === 'transcript' && message.role === 'Gemini').length, 0);
+  assert.equal(messages.filter(message => message.type === 'audio').length, 8);
+  callbacks.onmessage({ serverContent: audio });
+  const earlyPong = once(ws, 'pong'); ws.ping(); await earlyPong;
+  assert.equal(messages.filter(message => message.type === 'audio').length, 9, 'ordinary PCM must not wait for output transcription');
+  callbacks.onmessage({ serverContent: { ...audio, outputTranscription: { text: 'What time and date did it begin?', finished: true }, turnComplete: true } });
+  const spokenPong = once(ws, 'pong'); ws.ping(); await spokenPong;
+  assert.deepEqual(messages.filter(message => message.type === 'transcript' && message.role === 'Gemini').map(message => message.text), ['What time and date did it begin?']);
+  assert.equal(messages.filter(message => message.type === 'audio').length, 10);
+  ws.close(); await waitClosed(ws);
 });
 
 test('ending while upstream connects closes the late session', async t => {
@@ -481,6 +522,10 @@ test('closing prompt separates the optional question from the final response', (
 
 test('Live clarifies isolated transcription anomalies without blocking multilingual intake', () => {
   assert.match(systemInstruction, /Default to English unless the patient explicitly requests another language or clearly continues consistently in another language/);
+  assert.match(systemInstruction, /Once a clear, sustained language choice is established, respond in that same language/);
+  assert.match(systemInstruction, /single incidental Portuguese word such as "Não" inside an otherwise English conversation does not switch the active language/);
+  assert.match(systemInstruction, /coherent Tagalog conversation such as "Masakit ang ulo ko" should receive Tagalog replies/);
+  assert.match(systemInstruction, /If the patient clearly changes languages and sustains the new language, follow the new choice/);
   assert.match(systemInstruction, /"Sorry, I didn't catch that\. Could you say that again\?"/);
   assert.match(systemInstruction, /Then wait; do not infer symptoms from it/);
   assert.match(systemInstruction, /Er ist ganz dein/);

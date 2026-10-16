@@ -1,7 +1,7 @@
 import { CaseStoreError, validCaseId } from './store.js';
 
 // The request identifies a stored case only. No client routing decision is accepted.
-export function routingEndpoint(store, origins, { resolvePatientIdentity } = {}) {
+export function routingEndpoint(store, origins, { resolvePatientIdentity, resolveAvailableSpecialties } = {}) {
   return async (request, response) => {
     response.setHeader('Content-Type', 'application/json');
     response.setHeader('Cache-Control', 'no-store');
@@ -22,13 +22,27 @@ export function routingEndpoint(store, origins, { resolvePatientIdentity } = {})
         let value;
         try { value = JSON.parse(body); } catch { throw new CaseStoreError('INVALID_ROUTING_REQUEST', 400); }
         if (!value || Array.isArray(value) || typeof value !== 'object' || Object.keys(value).length) throw new CaseStoreError('INVALID_ROUTING_REQUEST', 400);
-        result = await store.routeCase(id);
+        const availableSpecialties = typeof resolveAvailableSpecialties === 'function' ? await resolveAvailableSpecialties() : undefined;
+        result = await store.routeCase(id, { availableSpecialties });
       } else if (request.method === 'GET' && url.pathname === '/api/doctor/cases') {
         const keys = [...url.searchParams.keys()];
         if (keys.some(key => key !== 'after') || keys.length > 1) throw new CaseStoreError('INVALID_QUEUE_QUERY', 400);
-        result = await store.listDoctorCases({ after: url.searchParams.get('after') ?? undefined, resolvePatientIdentity });
+        result = await store.listDoctorCases({ after: url.searchParams.get('after') ?? undefined, resolvePatientIdentity, specialties: request.user?.specialties });
+      } else if (request.method === 'GET' && /^\/api\/doctor\/cases\/[^/?]+\/evidence\/[a-z0-9-]{1,48}$/.test(url.pathname)) {
+        const [, , , , caseId, , evidenceId] = url.pathname.split('/');
+        const image = await store.getDoctorCaseEvidence(caseId, evidenceId, { specialties: request.user?.specialties });
+        response.setHeader('Content-Type', image.mimeType);
+        response.setHeader('Content-Length', image.bytes.length);
+        response.setHeader('Content-Disposition', 'inline; filename="patient-evidence"');
+        response.writeHead(200); response.end(image.bytes); return true;
+      } else if (request.method === 'GET' && /^\/api\/doctor\/cases\/[^/?]+\/medicine-image$/.test(url.pathname)) {
+        const image = await store.getDoctorMedicineImage(url.pathname.split('/')[4], { specialties: request.user?.specialties });
+        response.setHeader('Content-Type', image.mimeType);
+        response.setHeader('Content-Length', image.bytes.length);
+        response.setHeader('Content-Disposition', 'inline; filename="medicine-package"');
+        response.writeHead(200); response.end(image.bytes); return true;
       } else if (request.method === 'GET' && /^\/api\/doctor\/cases\/[^/?]+$/.test(request.url)) {
-        result = await store.getDoctorCase(url.pathname.split('/')[4], { resolvePatientIdentity });
+        result = await store.getDoctorCase(url.pathname.split('/')[4], { resolvePatientIdentity, specialties: request.user?.specialties });
       } else throw new CaseStoreError('INVALID_ROUTING_REQUEST', 400);
       response.writeHead(200); response.end(JSON.stringify(result));
     } catch (error) {

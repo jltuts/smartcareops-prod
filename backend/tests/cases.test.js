@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { randomUUID } from 'node:crypto';
 import { once } from 'node:events';
 import { createServer } from 'node:http';
-import { createMemoryCaseStore, newCaseId, Handoff, Workflow } from '../src/cases/store.js';
+import { createCaseService, createMemoryCaseStore, newCaseId, Handoff, Workflow } from '../src/cases/store.js';
 import { createFirestoreCaseStore, createConfiguredCaseStore } from '../src/cases/firestore.js';
 import { withCasePersistence } from '../src/cases/lifecycle.js';
 import { caseEndpoint } from '../src/cases/http.js';
@@ -14,10 +14,13 @@ const sample = () => { const intake = emptyIntake(); intake.patient.name = 'Fict
 // SDK transaction contract mock: credentials/network are deliberately unnecessary.
 function firestoreMock() {
   const docs = new Map(); let queue = Promise.resolve();
-  const snapshot = id => ({ exists: docs.has(id), data: () => structuredClone(docs.get(id)) });
-  return { docs, collection(name) { assert.equal(name, 'cases'); return { doc: id => ({ id, get: async () => snapshot(id) }) }; },
+  const key = (name, id) => name === 'cases' ? id : `${name}/${id}`;
+  const snapshot = (name, id) => ({ exists: docs.has(key(name, id)), data: () => structuredClone(docs.get(key(name, id))) });
+  return { docs, collection(name) { return { doc: id => ({ id, get: async () => snapshot(name, id),
+      async create(value) { const path = key(name, id); assert.ok(!docs.has(path)); docs.set(path, structuredClone(value)); },
+      async delete() { docs.delete(key(name, id)); } }) }; },
     runTransaction(work) {
-      const next = queue.then(() => work({ get: async ref => snapshot(ref.id), create(ref, value) { assert.ok(!docs.has(ref.id)); docs.set(ref.id, structuredClone(value)); }, set(ref, value) { docs.set(ref.id, structuredClone(value)); } }));
+      const next = queue.then(() => work({ get: async ref => snapshot('cases', ref.id), create(ref, value) { assert.ok(!docs.has(ref.id)); docs.set(ref.id, structuredClone(value)); }, set(ref, value) { docs.set(ref.id, structuredClone(value)); } }));
       queue = next.catch(() => {}); return next;
     }, terminate() {} };
 }
@@ -79,6 +82,23 @@ test('live minimal case is reviewable before enrichment and terminal enrichment 
   assert.equal(enriched.enrichmentStatus, 'succeeded');
   assert.deepEqual(repeated, enriched);
   await assert.rejects(store.updateEnrichment({ caseId, intake, status: 'succeeded', patientUid: 'other-patient' }), error => error.code === 'CASE_NOT_FOUND');
+});
+
+test('evidence-storage failure preserves patient description with unavailable image metadata and no bytes', async () => {
+  let doc;
+  const store = createCaseService({
+    async transact(id, change) { doc = change(doc || null); return structuredClone(doc); },
+    async get() { return structuredClone(doc || null); },
+    async putPatientEvidence() { throw new Error('storage unavailable'); },
+  }, 'memory');
+  const bytes = Buffer.from([0xff, 0xd8, 1, 2, 0xff, 0xd9]);
+  const record = await store.createCase({ caseId: newCaseId(), intake: sample(), patientUid: 'patient-owner', submittedForReview: true,
+    patientEvidence: [{ evidenceId: 'body-area-1', kind: 'body_area', label: 'Pain location', patientDescription: 'Patient reports shoulder soreness.', mimeType: 'image/jpeg', byteLength: bytes.length, bytes }] });
+  assert.deepEqual(record.patientEvidence.map(({ evidenceId, kind, status, patientDescription }) => ({ evidenceId, kind, status, patientDescription })), [
+    { evidenceId: 'body-area-1', kind: 'body_area', status: 'unavailable', patientDescription: 'Patient reports shoulder soreness.' },
+  ]);
+  assert.equal(JSON.stringify(record).includes(bytes.toString('base64')), false);
+  await assert.rejects(store.getPatientCaseEvidence(record.caseId, 'body-area-1', 'patient-owner'), error => error.code === 'CASE_NOT_FOUND');
 });
 
 test('Doctor case detail resolves trusted profile identity separately from patient-reported name', async () => {
@@ -157,6 +177,20 @@ test('failure and cancellation pass through lifecycle while persistence records 
   await assert.rejects(run({ patientCaseId: caseId, signal: controller.signal, emit() {} }), /cancelled/);
   assert.equal((await store.getCase(caseId)).failure.code, 'CANCELLED');
 });
+test('Patient list API returns an opaque newest-first cursor and rejects malformed queries', async t => {
+  const store = createMemoryCaseStore(), ids = [];
+  for (let index = 0; index < 3; index++) { ids.push((await store.createCase({ caseId: newCaseId(), intake: sample(), patientUid: 'patient-list' })).caseId); await new Promise(resolve => setTimeout(resolve, 2)); }
+  await store.createCase({ caseId: newCaseId(), intake: sample(), patientUid: 'other-patient' });
+  const handler = caseEndpoint(store), server = createServer((req, res) => { req.user = { uid: 'patient-list' }; void handler(req, res); });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening'); t.after(() => new Promise(resolve => server.close(resolve)));
+  const base = `http://127.0.0.1:${server.address().port}`;
+  const firstResponse = await fetch(`${base}/api/cases?limit=2`), first = await firstResponse.json();
+  assert.equal(firstResponse.status, 200); assert.deepEqual(first.cases.map(record => record.caseId), [ids[2], ids[1]]); assert.match(first.nextCursor, /^[A-Za-z0-9_-]+$/);
+  const second = await (await fetch(`${base}/api/cases?limit=2&cursor=${encodeURIComponent(first.nextCursor)}`)).json();
+  assert.deepEqual(second.cases.map(record => record.caseId), [ids[0]]); assert.equal(second.nextCursor, null);
+  assert.equal((await fetch(`${base}/api/cases?limit=20`)).status, 200);
+  for (const query of ['limit=0', 'limit=21', 'cursor=bad', 'secret=value']) assert.equal((await fetch(`${base}/api/cases?${query}`)).status, 400);
+});
 
 test('patient-owned case read requires the same verified UID and never exposes the UID', async () => {
   const store = createMemoryCaseStore(), caseId = newCaseId();
@@ -189,3 +223,40 @@ test('Firestore permission errors become safe metadata without returning provide
     assert.ok(!error.message.includes('secret')); return true;
   });
 });
+for (const mode of ['memory', 'firestore']) {
+  const make = () => mode === 'memory' ? createMemoryCaseStore() : createFirestoreCaseStore(firestoreMock());
+  test(`${mode}: patient evidence bytes stay outside case JSON and require scoped image reads`, async () => {
+    const store = make(), caseId = newCaseId(), bytes = Buffer.from([0xff, 0xd8, 5, 4, 3, 0xff, 0xd9]);
+    const record = await store.createCase({ caseId, intake: sample(), patientUid: 'owner-uid', submittedForReview: true,
+      patientEvidence: [{ evidenceId: 'body-area-2', kind: 'body_area', label: 'Pain location', patientDescription: 'Patient points to an area.', mimeType: 'image/jpeg', byteLength: bytes.length, bytes }] });
+    assert.equal(record.patientEvidence[0].status, 'available');
+    assert.equal(JSON.stringify(record).includes(bytes.toString('base64')), false);
+    assert.equal(JSON.stringify(record).includes('imageBase64'), false);
+    assert.equal(JSON.stringify(record).includes('https://'), false);
+    assert.deepEqual((await store.getPatientCaseEvidence(caseId, 'body-area-2', 'owner-uid')).bytes, bytes);
+    assert.deepEqual((await store.getDoctorCaseEvidence(caseId, 'body-area-2')).bytes, bytes);
+    await assert.rejects(store.getPatientCaseEvidence(caseId, 'body-area-2', 'another-uid'), error => error.code === 'CASE_NOT_FOUND');
+  });
+}
+for (const mode of ['memory', 'firestore']) {
+  test(`${mode}: Doctor case review is terminal, idempotent, patient-safe, and has no operational side effect`, async () => {
+    const store = mode === 'memory' ? createMemoryCaseStore() : createFirestoreCaseStore(firestoreMock());
+    const caseId = newCaseId(), requestId = randomUUID();
+    await store.createCase({ caseId, intake: sample(), patientUid: 'patient-owner', submittedForReview: true,
+      intakeSource: 'live_intake', enrichmentStatus: 'succeeded' });
+    const before = await store.getCase(caseId);
+    const first = await store.decideClinicalReview(caseId, { requestId, decision: 'approved', reviewerId: 'doctor-1' });
+    const retry = await store.decideClinicalReview(caseId, { requestId, decision: 'approved', reviewerId: 'doctor-1' });
+    assert.deepEqual(retry, first); assert.equal(first.status, 'approved');
+    await assert.rejects(store.decideClinicalReview(caseId, { requestId: randomUUID(), decision: 'rejected', reviewerId: 'doctor-1' }),
+      error => error.code === 'CLINICAL_REVIEW_ALREADY_DECIDED');
+    const patient = await store.getPatientCase(caseId, 'patient-owner');
+    assert.deepEqual(patient.clinicalReview, { status: 'approved', updatedAt: first.decidedAt });
+    assert.equal(Object.hasOwn(patient, 'clinicalReviewDecision'), false);
+    assert.equal(patient.handoffStatus, Handoff.NONE); assert.equal(patient.routing, null); assert.equal(patient.ambulance, null);
+    assert.deepEqual(patient.reportedFacts, before.reportedFacts); assert.deepEqual(patient.hospitalHandoffs, []);
+    const outOfScope = newCaseId(); await store.createCase({ caseId: outOfScope, intake: sample(), patientUid: 'patient-owner' });
+    await assert.rejects(store.decideClinicalReview(outOfScope, { requestId: randomUUID(), decision: 'approved', reviewerId: 'doctor-1' }),
+      error => error.code === 'CLINICAL_REVIEW_NOT_PENDING');
+  });
+}

@@ -10,6 +10,7 @@ import { createCompletedCases, buildTask, caseFields } from '../src/agent/cases.
 import { validateAction } from '../src/agent/browser.js';
 import { runHandoff, computerUseModel, computerTools } from '../src/agent/loop.js';
 import { createApiServer } from '../src/server.js';
+import { createMemoryUserProfileStore } from '../src/user-profiles.js';
 
 const portalUrl = 'http://127.0.0.1:8080/hospital-demo';
 function sample() {
@@ -134,14 +135,16 @@ test('declined confirmation and errors preserve the M2 snapshot', async () => {
 });
 
 async function connect(url) {
-  const ws = new WebSocket(url, { origin: 'http://localhost:5173' }); const messages = [];
-  ws.on('message', raw => { const message = JSON.parse(raw); messages.push(message); if (message.type === 'completion-pending') { void readFinalization(url, message.resultTicket).then(result => messages.push(result)); ws.send(JSON.stringify({ type: 'completion-settled', id: message.id })); } }); await once(ws, 'open'); return { ws, messages };
+  const ws = new WebSocket(url, { origin: 'http://localhost:5173' }); const messages = [], finalizationPolls = [];
+  ws.on('message', raw => { const message = JSON.parse(raw); messages.push(message); if (message.type === 'completion-pending') { finalizationPolls.push(readFinalization(url, message.resultTicket).then(result => messages.push(result))); ws.send(JSON.stringify({ type: 'completion-settled', id: message.id })); } }); await once(ws, 'open'); return { ws, messages, finalizationPolls };
 }
 async function waitFor(check) { const deadline = Date.now() + 4000; while (!check()) { if (Date.now() > deadline) throw new Error('Timed out'); await new Promise(resolve => setTimeout(resolve, 5)); } }
 
 test('Live completion persists clinical review only; patient cannot access handoff execution', async t => {
   let callbacks, calls = 0;
-  const api = createApiServer({ caseStore: createMemoryCaseStore(), liveOptions: { apiKey: 'backend-only-test-key', connect: async options => { callbacks = options.callbacks; queueMicrotask(() => callbacks.onmessage({ setupComplete: {} })); return { sendRealtimeInput() {}, close() {} }; }, extract: async ({ utterances }) => ({ updates: utterances[0].text === 'Demo Jael' ? [{ kind: 'name', label: null, value: 'Demo Jael', secondaryValue: null, unit: null, qualitative: null, status: null, evidenceId: utterances[0].id, quote: 'Demo Jael' }] : [] }) },
+  const caseStore = createMemoryCaseStore();
+  const doctorProfiles = new Map([['verified-general-doctor', { uid: 'verified-general-doctor', displayName: 'Verified General Doctor', specialty: 'general_medicine', doctorVerification: { status: 'verified', specialty: 'general_medicine', displayName: 'Verified General Doctor', verifiedAt: '2026-01-01T00:00:00.000Z', verifiedBy: 'test-admin' }, roles: ['doctor'], status: 'active' }]]);
+  const api = createApiServer({ caseStore, authOptions: { userProfileStore: createMemoryUserProfileStore(doctorProfiles) }, liveOptions: { apiKey: 'backend-only-test-key', connect: async options => { callbacks = options.callbacks; queueMicrotask(() => callbacks.onmessage({ setupComplete: {} })); return { sendRealtimeInput() {}, close() {} }; }, extract: async ({ utterances }) => ({ updates: utterances[0].text === 'Demo Jael' ? [{ kind: 'name', label: null, value: 'Demo Jael', secondaryValue: null, unit: null, qualitative: null, status: null, evidenceId: utterances[0].id, quote: 'Demo Jael' }] : [] }) },
     agentRun: async () => { calls++; }, hospitalConnectors: { rest: { submitCase: async () => { calls++; } } },
   });
   api.server.listen(0, '127.0.0.1'); await once(api.server, 'listening'); t.after(() => api.shutdown());
@@ -157,11 +160,17 @@ test('Live completion persists clinical review only; patient cannot access hando
   const patientCase = live.messages.find(m => m.patientCase).patientCase;
   assert.equal(patientCase.storage, 'memory');
   assert.equal(patientCase.workflowStatus, 'submitted_for_clinical_review');
-  assert.equal(patientCase.handoffStatus, 'not_started');
+  // The first event is intentionally minimal; verify execution state from durable storage below.
+  assert.equal(patientCase.enrichmentStatus, 'pending');
   assert(!live.messages.some(m => m.completionToken));
   for (let i = 0; i < 3; i++) {
-    const stored = await (await fetch(base.replace('ws:', 'http:') + '/api/cases/' + patientCase.caseId)).json();
+    const response = await fetch(base.replace('ws:', 'http:') + '/api/cases/' + patientCase.caseId);
+    // Legacy test socket has no patient identity; local HTTP identity must not read its case.
+    assert.equal(response.status, 404);
+    assert.equal((await response.json()).code, 'CASE_NOT_FOUND');
+    const stored = await caseStore.getCase(patientCase.caseId);
     assert.equal(stored.handoffStatus, 'not_started'); assert.equal(stored.hospitalHandoffs.length, 0);
   }
+  await Promise.all(live.finalizationPolls);
   assert.equal(calls, 0); assert(!JSON.stringify(live.messages).includes('backend-only-test-key'));
 });

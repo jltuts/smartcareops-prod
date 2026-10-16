@@ -2,11 +2,21 @@ import { once } from 'node:events';
 import { createServer } from 'vite';
 import { createApiServer } from '../backend/src/server.js';
 import { createMemoryCaseStore } from '../backend/src/cases/store.js';
+import { createMemoryLiveSessionStore } from '../backend/src/live-session.js';
+import { createMemoryChatIntakeStore } from '../backend/src/chat-intake/store.js';
 
 export default async function setupServers() {
   // Own the servers directly so teardown can await socket/watcher cleanup on
   // Windows too, without relying on Playwright's shell/taskkill process tree.
-  const api = createApiServer({ caseStore: createMemoryCaseStore() });
+  const api = createApiServer({ caseStore: createMemoryCaseStore(), liveSessionStore: createMemoryLiveSessionStore(), chatIntakeStore: createMemoryChatIntakeStore(),
+    chatExtractor: async ({ utterances }) => {
+      const [{ id, text, question }] = utterances;
+      const base = { label: null, value: null, secondaryValue: null, unit: null, qualitative: null, status: null, evidenceId: id, quote: text };
+      if (/name would you like/i.test(question)) return { updates: [{ ...base, kind: 'name', value: text }] };
+      if (/feeling today/i.test(question)) return { updates: [{ ...base, kind: 'symptom', label: /shoulder/i.test(text) ? 'shoulder pain' : 'unwell', status: 'confirmed' }] };
+      if (/when did/i.test(question)) return { updates: [{ ...base, kind: 'onset', value: text }] };
+      return { updates: [] };
+    } });
   let vite;
   const teardown = async () => {
     const results = await Promise.allSettled([vite?.close(), api.shutdown()]);
@@ -24,6 +34,7 @@ export default async function setupServers() {
       '/api/notifications': { target },
       '/api/regional': { target },
       '/api/simulation': { target },
+      '/api/patterns': { target },
       '/api/caretwin': { target },
       '/api/operations': { target },
       '/api/clinical': { target },
@@ -31,6 +42,7 @@ export default async function setupServers() {
       '/api/dispatcher': { target },
       '/api/doctor': { target },
       '/api/cases': { target },
+      '/api/intake': { target },
       '/api/intake-finalization': { target }, '/hospital-demo': { target },
       '/api/agent': { target, ws: true }, '/api/live': { target, ws: true },
     } } });

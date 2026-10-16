@@ -8,6 +8,12 @@ import { createApiServer } from '../src/server.js';
 import { createMemoryCaseStore } from '../src/cases/store.js';
 import { createMemoryUserProfileStore } from '../src/user-profiles.js';
 
+function advanceTicks(state, ticks) {
+  let next = state, remaining = ticks;
+  while (remaining > 0) { const steps = Math.min(12, remaining); next = advanceSimulationState(next, steps); remaining -= steps; }
+  return next;
+}
+
 test('same seed and scenario produce the same initial and advancing state', () => {
   const a = createInitialSimulationState({ seed: 71 }), b = createInitialSimulationState({ seed: 71 });
   assert.deepEqual(a, b); assert.deepEqual(advanceSimulationState(a, 4), advanceSimulationState(b, 4));
@@ -21,13 +27,34 @@ test('reset restores the selected scenario initial state and the clock advances 
 
 test('hospital and ICU occupancy stay within effective capacity in every scenario', () => {
   for (const scenario of ['normal_operations', 'ed_surge', 'respiratory_outbreak', 'capacity_failure']) {
-    const state = advanceSimulationState(createInitialSimulationState({ scenario }), 12);
-    for (const hospital of state.hospitals) {
-      assert.ok(hospital.edOccupied >= 0 && hospital.edOccupied <= hospital.edEffectiveCapacity);
-      assert.ok(hospital.icuOccupied >= 0 && hospital.icuOccupied <= hospital.icuEffectiveCapacity);
-      assert.ok(hospital.edEffectiveCapacity <= hospital.edCapacity && hospital.icuEffectiveCapacity <= hospital.icuCapacity);
-      assert.ok(hospital.edUtilization >= 0 && hospital.edUtilization <= 1);
+    let state = createInitialSimulationState({ scenario });
+    for (let tick = 0; tick < 48; tick++) {
+      state = advanceSimulationState(state);
+      for (const hospital of state.hospitals) {
+        assert.ok(hospital.edOccupied >= 0 && hospital.edOccupied <= hospital.edEffectiveCapacity);
+        assert.ok(hospital.icuOccupied >= 0 && hospital.icuOccupied <= hospital.icuEffectiveCapacity);
+        assert.ok(hospital.edEffectiveCapacity <= hospital.edCapacity && hospital.icuEffectiveCapacity <= hospital.icuCapacity);
+        assert.ok(hospital.edUtilization >= 0 && hospital.edUtilization <= 1);
+      }
     }
+  }
+});
+
+test('scenario-aware ICU flow keeps Normal stable and gives ED Surge modest bounded growth', () => {
+  const totalIcu = state => state.hospitals.reduce((sum, hospital) => sum + hospital.icuOccupied, 0);
+  const normal = createInitialSimulationState({ scenario: 'normal_operations', seed: 41 });
+  assert.equal(totalIcu(advanceTicks(normal, 24)), totalIcu(normal));
+  const surge = createInitialSimulationState({ scenario: 'ed_surge', seed: 41 });
+  assert.deepEqual([6, 12, 24].map(ticks => totalIcu(advanceTicks(surge, ticks))), [28, 30, 34]);
+  assert.deepEqual(advanceSimulationState(surge, 12), advanceSimulationState(surge, 12));
+});
+
+test('Respiratory Outbreak produces stronger ICU pressure than ED Surge without diagnosis inference', () => {
+  const totalIcu = state => state.hospitals.reduce((sum, hospital) => sum + hospital.icuOccupied, 0);
+  const surge = createInitialSimulationState({ scenario: 'ed_surge', seed: 8 });
+  const respiratory = createInitialSimulationState({ scenario: 'respiratory_outbreak', seed: 8 });
+  for (const ticks of [6, 12, 24]) {
+    assert.ok(totalIcu(advanceTicks(respiratory, ticks)) > totalIcu(advanceTicks(surge, ticks)));
   }
 });
 
@@ -51,6 +78,11 @@ test('Capacity Failure reduces HOSP-002 capacity and redistributes projected dem
   const affected = failed.hospitals.find(h => h.id === 'HOSP-002'), adjacent = failed.hospitals.find(h => h.id === 'HOSP-001');
   assert.ok(affected.edEffectiveCapacity < affected.edCapacity); assert.equal(affected.operationalState, 'degraded');
   assert.ok(adjacent.projectedDemand > normal.hospitals.find(h => h.id === 'HOSP-001').projectedDemand);
+  const normalIcu = advanceTicks(createInitialSimulationState(), 24).hospitals.find(h => h.id === 'HOSP-002');
+  const failedIcu = advanceTicks(createInitialSimulationState({ scenario: 'capacity_failure' }), 24).hospitals.find(h => h.id === 'HOSP-002');
+  assert.equal(failedIcu.icuEffectiveCapacity, 10);
+  assert.equal(failedIcu.icuOccupied, normalIcu.icuOccupied);
+  assert.ok(failedIcu.icuUtilization > normalIcu.icuUtilization);
 });
 
 test('deterministic demand pressure moves one ambulance through a bounded assignment lifecycle', () => {

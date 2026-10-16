@@ -47,7 +47,7 @@ test('BP 190/45 alone and dizziness remain normal and eligible for M5', async ()
   const store = createMemoryCaseStore(), caseId = newCaseId();
   const original = await store.createCase({ caseId, intake: facts }); assert.equal(original.workflowStatus, Workflow.INTAKE);
   assert.deepEqual(await store.evaluateEmergency(caseId), original);
-  assert.equal((await store.routeCase(caseId)).routing.specialty, 'neurology');
+  assert.equal((await store.routeCase(caseId, { availableSpecialties: new Set(['neurology']) })).routing.specialty, 'neurology');
   assert.equal((await store.listDispatcherCases()).cases.length, 0);
 });
 
@@ -106,7 +106,7 @@ test('explicit evaluation of a legacy/routed case preserves the full prior M4/M5
   await store.createCase({ caseId, intake: routingIntake() });
   await store.updateCaseStatus(caseId, Handoff.PENDING, attemptId); await store.updateCaseStatus(caseId, Handoff.ACTIVE, attemptId);
   await store.updateHandoffResult(caseId, { attemptId, receipt: { caseId: 'DEMO-1234ABCD' } });
-  const original = await store.routeCase(caseId);
+  const original = await store.routeCase(caseId, { availableSpecialties: new Set(['neurology']) });
   // Simulate a legacy document with newly validated stored facts. No frontend
   // endpoint can set facts or the workflow. A read does not implicitly escalate.
   db.docs.get(caseId).reportedFacts = emergencyIntake();
@@ -140,11 +140,16 @@ test('changed emergency facts and invalid metadata fail closed without resetting
   assert.equal((await store.getCase(caseId)).emergency, null);
 });
 test('dispatcher query paginates pending and acknowledged cases without duplicate records', async () => {
-  const store = createFirestoreCaseStore(routingFirestoreMock());
-  for (let i = 0; i < 52; i++) { const caseId = newCaseId(); await store.createCase({ caseId, intake: emergencyIntake() }); if (i % 2) await store.acknowledgeEmergency(caseId); }
+  const db = routingFirestoreMock(), store = createFirestoreCaseStore(db);
+  for (let i = 0; i < 52; i++) {
+    const caseId = newCaseId(); await store.createCase({ caseId, intake: emergencyIntake() }); if (i % 2) await store.acknowledgeEmergency(caseId);
+    db.docs.get(caseId).createdAt = new Date(Date.UTC(2026, 9, 1, 0, i)).toISOString();
+  }
   const first = await store.listDispatcherCases(), second = await store.listDispatcherCases({ after: first.nextCursor });
   assert.equal(first.cases.length, 50); assert.equal(second.cases.length, 2); assert.equal(second.nextCursor, null);
-  assert.equal(new Set([...first.cases, ...second.cases].map(doc => doc.caseId)).size, 52);
+  const cases = [...first.cases, ...second.cases];
+  assert.equal(new Set(cases.map(doc => doc.caseId)).size, 52);
+  assert.deepEqual(cases.map(doc => doc.createdAt), [...cases].map(doc => doc.createdAt).sort().reverse());
 });
 test('failed Firestore acknowledgement leaves pending state intact and safe error metadata', async () => {
   const db = routingFirestoreMock(), store = createFirestoreCaseStore(db), caseId = newCaseId();
@@ -169,12 +174,15 @@ test('dispatcher API validates command bodies, state, origin and case IDs; retur
   await store.createCase({ caseId: id, intake: emergencyIntake() }); await store.createCase({ caseId: normal, intake: routingIntake() });
   const api = createApiServer({ caseStore: store }); api.server.listen(0, '127.0.0.1'); await once(api.server, 'listening'); t.after(() => api.shutdown());
   const base = `http://127.0.0.1:${api.server.address().port}`, origin = 'http://127.0.0.1:4173';
-  const post = (path, body = {}, from = origin) => fetch(base + path, { method: 'POST', headers: { Origin: from, 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+  const post = (path, body = {}, from = origin) => fetch(base + path, { method: 'POST', headers: {
+    ...(from !== null ? { Origin: from } : {}), 'Content-Type': 'application/json',
+    'Sec-Fetch-Site': 'cross-site', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Dest': 'empty',
+  }, body: JSON.stringify(body) });
   const path = `/api/dispatcher/cases/${id}/acknowledge`, evaluate = `/api/cases/${id}/evaluate-emergency`;
   for (const body of [{ status: 'acknowledged' }, { reasonCode: 'chest_pain_red_flag' }, { triggeredAt: new Date().toISOString() }, { acknowledgedAt: new Date().toISOString() }, { acknowledgedBy: 'Dr Example' }, { workflowStatus: 'emergency_pending_dispatcher' }, { intake: emergencyIntake() }, null, []]) {
     assert.equal((await post(path, body)).status, 400); assert.equal((await post(evaluate, body)).status, 400);
   }
-  assert.equal((await post(path, {}, 'http://attacker.invalid')).status, 403);
+  for (const rejectedOrigin of ['http://attacker.invalid', 'not-an-origin', null]) assert.equal((await post(path, {}, rejectedOrigin)).status, 403);
   assert.equal((await post('/api/dispatcher/cases/bad/acknowledge')).status, 400);
   assert.equal((await post(`/api/dispatcher/cases/${normal}/acknowledge`)).status, 409);
   assert.equal((await fetch(base + `/api/dispatcher/cases/${normal}`)).status, 404);
@@ -184,7 +192,8 @@ test('dispatcher API validates command bodies, state, origin and case IDs; retur
   const response = await post(path); assert.equal(response.status, 200); assert.equal(response.headers.get('cache-control'), 'no-store');
   const record = await response.json(); assert.equal(record.emergency.acknowledgedBy, 'demo_dispatcher'); assert.equal(record.emergencyFactsHash, undefined);
   const queue = await (await fetch(base + '/api/dispatcher/cases')).json(); assert.deepEqual(queue.cases.map(doc => doc.caseId), [id]);
-  const route = await post(`/api/cases/${id}/route`); assert.equal((await route.json()).workflowStatus, Workflow.ACKNOWLEDGED);
+  const route = await fetch(base + `/api/cases/${id}/route`, { method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' }, body: '{}' });
+  assert.equal((await route.json()).workflowStatus, Workflow.ACKNOWLEDGED);
   store.acknowledgeEmergency = async () => { throw new Error('secret SDK payload'); };
   const failed = await post(path); assert.equal(failed.status, 503); assert.ok(!(await failed.text()).includes('secret'));
 });

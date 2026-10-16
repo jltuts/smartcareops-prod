@@ -1,0 +1,10 @@
+**/.env
+**/.env.*
+**/node_modules
+**/*.tfstate*
+**/*.tfplan
+**/*.plan.json
+**/.git
+**/dist
+**/output
+**/outputs

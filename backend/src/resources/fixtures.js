@@ -11,7 +11,7 @@ export function seedResources(now = Date.now()) {
     patientLocation: location(14.600, 121.000),
     hospitals: [
       hospital('HOSP-001', 'SmartCare General Hospital (fictional)', 14.615, 121.015, ['emergency', 'general_medicine', 'pulmonology', 'cardiology', 'monitored_care', 'icu'], 2, 1, ['general_medicine', 'pulmonology', 'cardiology']),
-      hospital('HOSP-002', 'North Valley Medical Center (fictional)', 14.625, 121.005, ['emergency', 'general_medicine', 'neurology', 'imaging', 'monitored_care'], 4, 0, ['general_medicine', 'neurology']),
+      hospital('HOSP-002', 'North Valley Medical Center (fictional)', 14.625, 121.005, ['emergency', 'general_medicine', 'neurology', 'orthopedics', 'imaging', 'monitored_care'], 4, 0, ['general_medicine', 'neurology', 'orthopedics']),
       hospital('HOSP-003', 'Regional Medical Center (fictional)', 14.655, 121.040, ['emergency', 'general_medicine', 'pulmonology', 'icu', 'monitored_care'], 1, 2, ['general_medicine', 'pulmonology']),
     ],
   };

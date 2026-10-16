@@ -1,0 +1,18 @@
+.doctor-lab-reports { grid-column: 1 / -1; }
+.doctor-lab-reports > form { display: grid; justify-items: start; gap: 12px; width: min(100%, 640px); margin-top: 18px; }
+.doctor-lab-dropzone { box-sizing: border-box; display: grid; gap: 8px; width: 100%; padding: 14px; border: 1px dashed #8fb9b0; border-radius: 10px; background: #f9fcfb; transition: border-color .18s ease, background .18s ease; }
+.doctor-lab-dropzone-active, .doctor-lab-dropzone:focus-within { border-color: #0f7081; background: #eaf7f5; }
+.doctor-lab-reports label { display: grid; gap: 8px; width: 100%; font-weight: 700; }
+.doctor-lab-drop-hint { color: #415e58; font-size: 13px; line-height: 1.4; overflow-wrap: anywhere; }
+.doctor-lab-reports input[type='file'] { box-sizing: border-box; width: 100%; min-width: 0; padding: 6px; border: 1px solid #b7d9e5; border-radius: 9px; background: #fff; color: #173f3b; font: inherit; font-weight: 400; }
+.doctor-lab-reports input[type='file']::file-selector-button { min-height: 34px; margin-right: 12px; padding: 7px 12px; border: 1px solid #b7d9e5; border-radius: 7px; background: #eaf7fb; color: #0a647e; font: inherit; font-weight: 750; cursor: pointer; }
+.doctor-lab-reports input[type='file']:hover::file-selector-button { border-color: #79bfd0; background: #dff1f5; }
+.doctor-lab-reports input[type='file']:focus-visible { outline: 3px solid #65b8aa; outline-offset: 3px; }
+.doctor-lab-reports button { min-height: 42px; border: 1px solid #0f7081; border-radius: 9px; padding: 9px 14px; background: #0f7081; color: #fff; font: inherit; font-weight: 700; cursor: pointer; }
+.doctor-lab-reports button:disabled { opacity: .6; cursor: wait; }
+.doctor-lab-list { list-style: none; padding: 0; margin: 12px 0 0; }
+.doctor-lab-list li { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 12px; padding: 10px 0; border-top: 1px solid #d5e7e8; overflow-wrap: anywhere; }
+.doctor-lab-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+.doctor-lab-actions button:last-child { border-color: #8db0a8; background: #fff; color: #175f58; }
+.doctor-lab-status { min-height: 1.5em; }
+.doctor-lab-status:empty { display: none; }

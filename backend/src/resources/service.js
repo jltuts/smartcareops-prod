@@ -16,6 +16,16 @@ export function updateCapacity(state, input, now) {
   catalog.version++; catalog.resourceVersion = 'm9-demo:' + catalog.version;
   return validateCatalog(catalog);
 }
+export function resetHospitalCapacity(state, hospitalId, now) {
+  const catalog = validateCatalog(state.resourceEnvironment), hospital = catalog.hospitals.find(item => item.hospitalId === hospitalId);
+  const baseline = seedResources(now).hospitals.find(item => item.hospitalId === hospitalId);
+  check(hospital && baseline);
+  if (hospital.capacity.monitoredBedsAvailable === baseline.capacity.monitoredBedsAvailable) return catalog;
+  hospital.capacity.monitoredBedsAvailable = baseline.capacity.monitoredBedsAvailable;
+  hospital.capacity.updatedAt = new Date(now).toISOString(); catalog.updatedAt = hospital.capacity.updatedAt;
+  catalog.version++; catalog.resourceVersion = 'm9-demo:' + catalog.version;
+  return validateCatalog(catalog);
+}
 export function createResourceService({ mode = 'simulation', mapsMode = 'simulation', adapter } = {}) {
   if (mode !== 'simulation') throw new ResourceError('RESOURCE_MODE_UNAVAILABLE');
   const maps = adapter || createMapsAdapter(mapsMode);

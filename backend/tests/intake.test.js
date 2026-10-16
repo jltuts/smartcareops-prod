@@ -152,6 +152,16 @@ test('confirmed current chest pain is represented separately without interpretin
   assert.throws(() => merge([update('redFlag', 'I have difficulty breathing', { label: 'severe difficulty breathing', status: 'confirmed' })], [utterance('I have difficulty breathing')]));
 });
 
+test('an independent cannot-breathe statement remains confirmed when an earlier sentence is uncertain', () => {
+  const explicit = "I think I'm having an asthma attack. I can't breathe.";
+  const confirmed = merge([update('redFlag', explicit, { label: 'severe difficulty breathing', status: 'confirmed' })], [utterance(explicit)]);
+  assert.equal(confirmed.redFlags[0].status, 'confirmed');
+
+  const uncertain = "I think I can't breathe.";
+  const unclear = merge([update('redFlag', uncertain, { label: 'severe difficulty breathing', status: 'confirmed' })], [utterance(uncertain)]);
+  assert.equal(unclear.redFlags[0].status, 'unclear');
+});
+
 test('unknown diagnosis fields, invalid enums, fabricated evidence and assistant evidence are rejected atomically', () => {
   const text = 'I have a cough';
   const good = update('symptom', text, { label: 'cough', status: 'confirmed' });

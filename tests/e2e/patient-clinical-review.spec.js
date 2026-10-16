@@ -3,13 +3,15 @@ import { once } from 'node:events';
 import { createRequire } from 'node:module';
 import { createApiServer } from '../../backend/src/server.js';
 import { createMemoryCaseStore } from '../../backend/src/cases/store.js';
+import { createMemoryUserProfileStore } from '../../backend/src/user-profiles.js';
 const { WebSocket } = createRequire(new URL('../../backend/src/live.js', import.meta.url))('ws');
 test.use({ permissions: ['microphone'], launchOptions: { args: ['--use-fake-device-for-media-stream', '--use-fake-ui-for-media-stream'] } });
 
 for (const outcome of ['normal', 'emergency']) test(`saved ${outcome} intake never executes a hospital connector`, async ({ page }) => {
   let callbacks, calls = 0, release, closed = 0, requestStart;
   const store = createMemoryCaseStore();
-  const api = createApiServer({ caseStore: store, liveOptions: { apiKey: 'fake',
+  const doctorProfiles = new Map([['verified-general-doctor', { uid: 'verified-general-doctor', displayName: 'Verified General Doctor', specialty: 'general_medicine', doctorVerification: { status: 'verified', specialty: 'general_medicine', displayName: 'Verified General Doctor', verifiedAt: '2026-01-01T00:00:00.000Z', verifiedBy: 'test-admin' }, roles: ['doctor'], status: 'active' }]]);
+  const api = createApiServer({ caseStore: store, authOptions: { userProfileStore: createMemoryUserProfileStore(doctorProfiles) }, liveOptions: { apiKey: 'fake',
     connect: async options => { callbacks = options.callbacks; queueMicrotask(() => callbacks.onmessage({ setupComplete: {} })); return { sendRealtimeInput() {}, close() { closed++; } }; },
     extract: async ({ utterances }) => ({ updates: utterances.map(u => ({ kind: outcome === 'emergency' ? 'redFlag' : 'name', label: outcome === 'emergency' ? 'current chest pain' : null, value: outcome === 'emergency' ? null : 'Demo Alex', secondaryValue: null, unit: null, qualitative: null, status: outcome === 'emergency' ? 'confirmed' : null, evidenceId: u.id, quote: u.text })) }),
   }, agentRun: async () => { calls++; throw new Error('Patient must not execute Computer Use'); },
@@ -25,6 +27,7 @@ for (const outcome of ['normal', 'emergency']) test(`saved ${outcome} intake nev
       socket.onClose(() => backend.close()); backend.on('message', raw => socket.send(raw.toString())); backend.on('close', () => socket.close());
     });
     await page.goto('/patient');
+  await page.locator('[data-intake-mode="voice"]:visible').first().click();
     await expect(page.getByRole('button', { name: 'Start Conversation' })).toBeDisabled();
     await expect(page.getByRole('button', { name: /Start Agent|Trigger Workflow|Execute Agent|Run Reasoning/ })).toHaveCount(0);
     await page.locator('#intake-fictional').check(); await page.getByRole('button', { name: 'Start Conversation' }).click();
@@ -42,12 +45,14 @@ for (const outcome of ['normal', 'emergency']) test(`saved ${outcome} intake nev
     await expect(page.getByRole('button', { name: /Start Agent|Start Handoff|Computer Use|Approve|Execute|Route to doctor/i })).toHaveCount(0);
     const id = await page.locator('#patient-case-id').textContent();
     const record = await store.getCase(id);
-    expect(record.workflowStatus).toBe('submitted_for_clinical_review'); expect(record.hospitalHandoffs).toHaveLength(0);
+    expect(record.workflowStatus).toBe('routed_to_doctor'); expect(record.routing?.specialty).toBe('general_medicine'); expect(record.hospitalHandoffs).toHaveLength(0);
     expect(record.handoffStatus).toBe('not_started'); expect(calls).toBe(0);
-    await page.reload(); await expect(page.locator('#handoff-status')).toHaveText('Your intake has been submitted for clinical review.');
+    await page.reload();
+    await page.locator('[data-patient-view-link="cases"]:visible').click();
+    await expect(page.locator('#handoff-status')).toHaveText('Your intake has been submitted for clinical review.');
     await page.getByRole('button', { name: 'Refresh case', exact: true }).click();
     await expect(page.locator('#handoff-status')).toHaveText('Your intake has been submitted for clinical review.'); expect(calls).toBe(0);
-  } finally { release?.(); await api.shutdown(); }
+  } finally { release?.(); await page.close(); await api.shutdown(); }
 });
 
 test('refresh of an unknown attempt shows reconciliation and cannot resubmit', async ({ page }) => {
@@ -63,9 +68,10 @@ test('refresh of an unknown attempt shows reconciliation and cannot resubmit', a
   try {
     await page.addInitScript(id => sessionStorage.setItem('smartcareops-case-id', id), caseId);
     await page.route('**/api/cases/**', async route => { const response = await route.fetch({ url: `http://127.0.0.1:${api.server.address().port}` + new URL(route.request().url()).pathname }); await route.fulfill({ response }); });
-    await page.goto('/patient'); await expect(page.locator('#handoff-status')).toContainText('reviewing hospital confirmation');
+    await page.goto('/patient');
+  await page.locator('[data-intake-mode="voice"]:visible').first().click(); await expect(page.locator('#handoff-status')).toContainText('reviewing hospital confirmation');
     await page.reload(); await expect(page.locator('#handoff-status')).toContainText('reviewing hospital confirmation');
     await expect(page.locator('#handoff-start')).toHaveCount(0); expect(runs).toBe(0);
     expect((await store.getCase(caseId)).handoffStatus).toBe(Handoff.ACTIVE);
-  } finally { await api.shutdown(); }
+  } finally { await page.close(); await api.shutdown(); }
 });

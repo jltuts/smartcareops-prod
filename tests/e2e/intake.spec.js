@@ -18,7 +18,7 @@ test('validated correction clears only the related visible repair after invalid 
   });
   try {
     await page.goto('/patient');
-    await page.locator('#intake-fictional').check();
+    await page.locator('[data-intake-mode="voice"]:visible').first().click(); await page.locator('#intake-fictional').check();
     await page.getByRole('button', { name: 'Start Conversation' }).click();
     await expect(page.locator('#connection-status')).toHaveText('Connected');
     const answer = text => {
@@ -60,7 +60,7 @@ test('extraction queue reports quota failures and validated updates reach the vi
   });
   try {
     await page.goto('/patient');
-    await page.locator('#intake-fictional').check();
+    await page.locator('[data-intake-mode="voice"]:visible').first().click(); await page.locator('#intake-fictional').check();
     await page.getByRole('button', { name: 'Start Conversation' }).click();
     await expect(page.locator('#connection-status')).toHaveText('Connected');
     for (const text of reports) session.accept({ inputTranscription: { text, finished: true } });
@@ -127,7 +127,7 @@ test('live updates distinguish reported facts, statuses, vitals and operational 
     socket.onMessage(raw => { if (JSON.parse(raw).type === 'start') socket.send(JSON.stringify({ type: 'ready' })); });
   });
   await page.goto('/patient');
-  await page.locator('#intake-fictional').check();
+  await page.locator('[data-intake-mode="voice"]:visible').first().click(); await page.locator('#intake-fictional').check();
     await page.getByRole('button', { name: 'Start Conversation' }).click();
   await expect(page.locator('#connection-status')).toHaveText('Connected');
   relay.send(JSON.stringify({ type: 'intake-update', intake: sample() }));
@@ -166,7 +166,7 @@ test('disconnect retains visible summary and the next start immediately clears p
     socket.onMessage(raw => { if (JSON.parse(raw).type === 'start') socket.send(JSON.stringify({ type: 'ready' })); });
   });
   await page.goto('/patient');
-  await page.locator('#intake-fictional').check();
+  await page.locator('[data-intake-mode="voice"]:visible').first().click(); await page.locator('#intake-fictional').check();
     await page.getByRole('button', { name: 'Start Conversation' }).click();
   await expect(page.locator('#connection-status')).toHaveText('Connected');
   relay.send(JSON.stringify({ type: 'intake-update', intake: sample() }));
@@ -174,7 +174,7 @@ test('disconnect retains visible summary and the next start immediately clears p
   relay.close({ code: 1011, reason: 'Test' });
   await expect(page.locator('#intake-status')).toContainText('Connection interrupted');
   await expect(page.locator('[data-intake="patient"]')).toContainText('Mark Lewis Garcia');
-  await page.locator('#intake-fictional').check();
+  await page.locator('[data-intake-mode="voice"]:visible').first().click(); await page.locator('#intake-fictional').check();
     await page.getByRole('button', { name: 'Start Conversation' }).click();
   await expect(page.locator('[data-intake="patient"]')).not.toContainText('Mark');
   await expect(page.locator('[data-intake="vitals"] .intake-value')).toHaveText(['—', '—', '—', '—', '—']);
@@ -188,7 +188,7 @@ test('completion with no pending audio preserves the summary and new intake rese
     socket.onMessage(raw => { if (JSON.parse(raw).type === 'start') socket.send(JSON.stringify({ type: 'ready' })); });
   });
   await page.goto('/patient');
-  await page.locator('#intake-fictional').check();
+  await page.locator('[data-intake-mode="voice"]:visible').first().click(); await page.locator('#intake-fictional').check();
     await page.getByRole('button', { name: 'Start Conversation' }).click();
   await expect(page.locator('#connection-status')).toHaveText('Connected');
   relay.send(JSON.stringify({ type: 'intake-update', intake: sample() }));
@@ -197,7 +197,7 @@ test('completion with no pending audio preserves the summary and new intake rese
   await expect(page.locator('#connection-status')).toHaveText('Completed');
   await expect(page.locator('[data-intake="patient"]')).toContainText('Mark Lewis Garcia');
   await expect(page.locator('[data-group="confirmed"]')).toContainText('cough');
-  await page.locator('#intake-fictional').check();
+  await page.locator('[data-intake-mode="voice"]:visible').first().click(); await page.locator('#intake-fictional').check();
     await page.getByRole('button', { name: 'Start Conversation' }).click();
   await expect(page.locator('#connection-status')).toHaveText('Connected');
   await expect(page.locator('[data-intake="patient"]')).not.toContainText('Mark');
@@ -216,7 +216,7 @@ test('final extracted facts reach the summary before the completed handoff becom
     const message = JSON.parse(raw); if (message.type === 'start') handed = message;
   }));
   await page.goto('/patient');
-  await page.locator('#intake-fictional').check();
+  await page.locator('[data-intake-mode="voice"]:visible').first().click(); await page.locator('#intake-fictional').check();
     await page.getByRole('button', { name: 'Start Conversation' }).click();
   await expect(page.locator('#connection-status')).toHaveText('Connected');
   relay.send(JSON.stringify({ type: 'turn-complete' }));

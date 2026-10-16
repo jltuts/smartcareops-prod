@@ -1,13 +1,13 @@
 const scenarioIds = Object.freeze(['normal_operations', 'ed_surge', 'respiratory_outbreak', 'capacity_failure']);
 const scenarioDefinitions = Object.freeze({
-  normal_operations: { title: 'Normal Operations', arrivals: [2, 1, 1], throughput: [2, 1, 1], respiratory: [0, 0, 0], icuArrivals: [0, 0, 0] },
-  ed_surge: { title: 'ED Surge', arrivals: [6, 4, 3], throughput: [3, 2, 2], respiratory: [0, 0, 0], icuArrivals: [0, 0, 0] },
-  respiratory_outbreak: { title: 'Respiratory Outbreak Simulation', arrivals: [4, 2, 4], throughput: [2, 1, 2], respiratory: [3, 1, 4], icuArrivals: [1, 0, 1] },
-  capacity_failure: { title: 'Hospital Capacity Failure Simulation', arrivals: [4, 1, 4], throughput: [2, 1, 2], respiratory: [0, 0, 0], icuArrivals: [0, 0, 0] },
+  normal_operations: { title: 'Normal Operations', arrivals: [2, 1, 1], throughput: [2, 1, 1], respiratory: [0, 0, 0], icuAdmissionPulse: 'none' },
+  ed_surge: { title: 'ED Surge', arrivals: [6, 4, 3], throughput: [3, 2, 2], respiratory: [0, 0, 0], icuAdmissionPulse: 'rotating' },
+  respiratory_outbreak: { title: 'Respiratory Outbreak Simulation', arrivals: [4, 2, 4], throughput: [2, 1, 2], respiratory: [3, 1, 4], icuAdmissionPulse: 'respiratory' },
+  capacity_failure: { title: 'Hospital Capacity Failure Simulation', arrivals: [4, 1, 4], throughput: [2, 1, 2], respiratory: [0, 0, 0], icuAdmissionPulse: 'none' },
 });
 const hospitalDefaults = [
   { id: 'HOSP-001', name: 'Northstar General', location: 'Central District', edCapacity: 100, edOccupied: 62, icuCapacity: 20, icuOccupied: 11, staffingCapacity: 100, specialties: ['emergency medicine', 'cardiology', 'pulmonology'], equipment: ['ventilators', 'monitors'] },
-  { id: 'HOSP-002', name: 'Riverside Medical', location: 'East District', edCapacity: 80, edOccupied: 44, icuCapacity: 16, icuOccupied: 9, staffingCapacity: 100, specialties: ['emergency medicine', 'neurology'], equipment: ['monitors', 'imaging'] },
+  { id: 'HOSP-002', name: 'Riverside Medical', location: 'East District', edCapacity: 80, edOccupied: 44, icuCapacity: 16, icuOccupied: 9, staffingCapacity: 100, specialties: ['emergency medicine', 'family medicine', 'neurology', 'orthopedics'], equipment: ['monitors', 'imaging'] },
   { id: 'HOSP-003', name: 'Harbor Community Hospital', location: 'South District', edCapacity: 60, edOccupied: 28, icuCapacity: 12, icuOccupied: 6, staffingCapacity: 100, specialties: ['emergency medicine', 'pulmonology'], equipment: ['ventilators', 'monitors'] },
 ];
 const ambulanceDefaults = [
@@ -20,6 +20,13 @@ const timeLabel = minutes => `${String(Math.floor(minutes / 60) % 24).padStart(2
 const seededOffset = (seed, tick, index) => ((Math.imul((seed >>> 0) ^ Math.imul(tick + 1, 0x45d9f3b), index + 17) >>> 0) % 3) - 1;
 
 function effectiveCapacity(base, factor) { return Math.max(0, Math.floor(base * factor)); }
+
+function scenarioDrivenIcuAdmission(pulse, tick, hospitalIndex) {
+  if (tick % 3 !== 0) return 0;
+  if (pulse === 'rotating') return hospitalIndex === (Math.floor(tick / 3) - 1) % hospitalDefaults.length ? 1 : 0;
+  if (pulse === 'respiratory' && (hospitalIndex === 0 || hospitalIndex === 2)) return tick >= 12 ? 2 : 1;
+  return 0;
+}
 
 export function createInitialSimulationState({ scenario = 'normal_operations', seed = 2026 } = {}) {
   if (!scenarioIds.includes(scenario)) throw new RangeError('INVALID_SIMULATION_SCENARIO');
@@ -99,12 +106,17 @@ function advanceOne(state, policy = {}) {
     const arrivals = demandArrivals[i] + (transportedArrivals.get(h.id) || 0);
     const edThroughput = Math.max(0, definition.throughput[i]);
     const respiratoryArrivals = definition.respiratory[i] + (next.scenario === 'respiratory_outbreak' ? Math.max(0, Math.floor(next.tick / 3)) : 0);
-    const icuNet = definition.icuArrivals[i] - 1;
+    // Routine synthetic ICU turnover is one paired admission/discharge every
+    // 30 simulated minutes. Scenario surges add bounded aggregate admissions;
+    // no diagnosis or patient-level data participates in this model.
+    const routineIcuTurnover = next.tick % 6 === 0 ? 1 : 0;
+    const icuDischarges = Math.min(h.icuOccupied, routineIcuTurnover);
+    const icuAdmissions = routineIcuTurnover + scenarioDrivenIcuAdmission(definition.icuAdmissionPulse, next.tick, i);
     h.incomingDemand = arrivals;
     h.projectedDemand = arrivals + projectedAdds[i];
     h.respiratoryDemand = respiratoryArrivals;
     h.edOccupied = clamp(h.edOccupied + arrivals - edThroughput, 0, h.edEffectiveCapacity);
-    h.icuOccupied = clamp(h.icuOccupied + icuNet, 0, h.icuEffectiveCapacity);
+    h.icuOccupied = clamp(h.icuOccupied + icuAdmissions - icuDischarges, 0, h.icuEffectiveCapacity);
     h.edUtilization = utilization(h.edOccupied, h.edEffectiveCapacity);
     h.icuUtilization = utilization(h.icuOccupied, h.icuEffectiveCapacity);
     h.staffingPressure = affected ? 0.88 : round(clamp(0.35 + h.edUtilization * 0.35 + h.icuUtilization * 0.3 + (respiratoryArrivals ? 0.08 : 0), 0, 1));

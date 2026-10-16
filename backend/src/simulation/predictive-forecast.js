@@ -25,18 +25,18 @@ function deriveBottlenecks(baseline, horizons) {
     const pressureStates = initial.operationalState === 'critical' ? [] : initial.operationalState === 'pressured' ? ['critical'] : ['pressured', 'critical'];
     const firstPressure = projections.find(({ hospital }) => pressureStates.includes(hospital.operationalState));
     if (firstPressure) {
-      risks.push({ resource: `${initial.hospitalId} ED`, facilityId: initial.hospitalId, horizonMinutes: firstPressure.minutes,
+      risks.push({ resource: `${initial.id} ED`, facilityId: initial.id, horizonMinutes: firstPressure.minutes,
         severity: firstPressure.hospital.operationalState, evidence: { edOccupied: firstPressure.hospital.edOccupied,
           edCapacity: firstPressure.hospital.edEffectiveCapacity, edUtilization: firstPressure.hospital.edUtilization,
           projectedDemand: firstPressure.hospital.projectedDemand, staffingPressure: firstPressure.hospital.staffingPressure } });
     } else if (initial.operationalState === 'critical') {
-      risks.push({ resource: `${initial.hospitalId} ED`, facilityId: initial.hospitalId, horizonMinutes: 0, severity: 'critical',
+      risks.push({ resource: `${initial.id} ED`, facilityId: initial.id, horizonMinutes: 0, severity: 'critical',
         evidence: { edOccupied: initial.edOccupied, edCapacity: initial.edEffectiveCapacity, edUtilization: initial.edUtilization,
           projectedDemand: initial.projectedDemand, staffingPressure: initial.staffingPressure } });
     }
     const icuProjection = projections.find(({ hospital }) => hospital.icuEffectiveCapacity > 0 && hospital.icuEffectiveCapacity - hospital.icuOccupied <= Math.max(1, Math.ceil(hospital.icuEffectiveCapacity * 0.15)));
     if (icuProjection && initial.icuEffectiveCapacity - initial.icuOccupied > Math.max(1, Math.ceil(initial.icuEffectiveCapacity * 0.15))) {
-      risks.push({ resource: `${initial.hospitalId} ICU reserve`, facilityId: initial.hospitalId, horizonMinutes: icuProjection.minutes,
+      risks.push({ resource: `${initial.id} ICU reserve`, facilityId: initial.id, horizonMinutes: icuProjection.minutes,
         severity: 'pressured', evidence: { icuOccupied: icuProjection.hospital.icuOccupied, icuCapacity: icuProjection.hospital.icuEffectiveCapacity,
           remainingBeds: icuProjection.hospital.icuEffectiveCapacity - icuProjection.hospital.icuOccupied } });
     }

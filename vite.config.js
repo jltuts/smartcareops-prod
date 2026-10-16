@@ -10,6 +10,7 @@ const proxy = {
   '/api/dispatcher': { target: 'http://127.0.0.1:8080' },
   '/api/doctor': { target: 'http://127.0.0.1:8080' },
   '/api/cases': { target: 'http://127.0.0.1:8080' },
+  '/api/intake': { target: 'http://127.0.0.1:8080' },
   '/api/intake-finalization': { target: 'http://127.0.0.1:8080' },
   '/hospital-demo': { target: 'http://127.0.0.1:8080' },
   '/api/agent': { target: 'ws://127.0.0.1:8080', ws: true },

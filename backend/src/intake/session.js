@@ -6,13 +6,14 @@ import { createAnswerContext } from './answer-context.js';
 import { pendingClarifications } from '../../../shared/intake-clarifications.js';
 import { isConfusion, clarificationFor } from './confusion.js';
 
-export function createIntakeSession({ extract, send, onValidated = () => {}, onClarification = () => {}, delay = 900, timeoutMs = 45000, log = details => console.warn('[intake] Update unavailable; previous state retained.', details) }) {
-  let intake = emptyIntake();
+export function createIntakeSession({ extract, send, initialIntake, onPatientTurn = () => {}, onValidated = () => {}, onClarification = () => {}, delay = 900, timeoutMs = 45000, log = details => console.warn('[intake] Update unavailable; previous state retained.', details) }) {
+  let intake = initialIntake ? structuredClone(initialIntake) : emptyIntake();
   let pending = [];
   let sequence = 0;
   let question = '';
   let unansweredQuestion = null;
   let patientBuffer = '';
+  let medicationSafetyBuffer = '';
   let patientQuestion = '';
   let modelBuffer = '';
   let timer;
@@ -39,11 +40,12 @@ export function createIntakeSession({ extract, send, onValidated = () => {}, onC
     if (!patientBuffer.trim()) return;
     const utterance = { id: ++sequence, role: 'Patient', text: patientBuffer.trim(), question: patientQuestion };
     patientBuffer = ''; patientQuestion = '';
-    // Only the completion controller authorizes this no-op. Earlier clinical work still drains.
-    if (finishedConfirmation) return;
+    // The final confirmation is not extracted, but the backend question plan still records its answer.
+    if (finishedConfirmation) { onPatientTurn(structuredClone(utterance)); return; }
     if (isConfusion(utterance.text)) {
       unansweredQuestion = unansweredQuestion || utterance.question;
-      onClarification(clarificationFor(unansweredQuestion), { reason: 'confusion', question: unansweredQuestion });
+      const action = onClarification(clarificationFor(unansweredQuestion), { reason: 'confusion', question: unansweredQuestion, utterance: structuredClone(utterance) });
+      if (action?.resolved) unansweredQuestion = null;
       return;
     }
     const guard = assessAnswer(utterance.text, utterance.question);
@@ -64,10 +66,22 @@ export function createIntakeSession({ extract, send, onValidated = () => {}, onC
         }
         send({ type: 'intake-update', intake: structuredClone(intake) });
       }
-      if (guard.clarification) onClarification(guard.clarification);
+      if (guard.clarification) {
+        const action = onClarification(guard.clarification, { reason: 'ambiguous', question: utterance.question, utterance: structuredClone(utterance) });
+        if (action?.resolved) unansweredQuestion = null;
+      }
       return;
     }
     unansweredQuestion = null;
+    const patientTurn = onPatientTurn(structuredClone(utterance));
+    if (patientTurn?.validatedPatch) {
+      const result = mergeBatch(intake, patientTurn.validatedPatch, [utterance]);
+      intake = result.intake;
+      send({ type: 'intake-update', intake: structuredClone(intake) });
+      if (result.acceptedCount || !result.rejected.length) onValidated(structuredClone(intake), { utterances: [structuredClone(utterance)] });
+      emit(result.rejected.length ? 'unavailable' : 'current');
+      return;
+    }
     pending.push(utterance);
     if (pending.length > 40) { pending = pending.slice(-40); emit('unavailable'); }
     schedule();
@@ -112,7 +126,7 @@ export function createIntakeSession({ extract, send, onValidated = () => {}, onC
       for (const grounding of result.groundingDiagnostics) log({ stage: 'validation', code: 'SYMPTOM_GROUNDING', ...grounding });
       const remaining = pendingClarifications(intake);
       send({ type: 'intake-update', intake: structuredClone(intake) });
-      if (acceptedCount || !rejectedCount) onValidated(structuredClone(intake));
+      if (acceptedCount || !rejectedCount) onValidated(structuredClone(intake), { utterances: structuredClone(batch) });
       if (result.unresolved.length) throw result.unresolved[0].error;
       // A successful retry supersedes a failed request only when it reprocesses
       // every failed utterance. Current field repairs are checked separately.
@@ -154,7 +168,8 @@ export function createIntakeSession({ extract, send, onValidated = () => {}, onC
         remainingClarifications: unresolved.length, extractionPending: running || pending.length > 0 || !!patientBuffer.trim() };
     },
     markFinalTurnReceived() { finalTurnReceived = true; },
-    start() { send({ type: 'intake-update', intake: emptyIntake() }); emit('waiting'); },
+    setActiveQuestion(value) { if (!closed && !draining && typeof value === 'string') { question = value.slice(0, 6000); unansweredQuestion = null; } },
+    start() { send({ type: 'intake-update', intake: structuredClone(intake) }); emit('waiting'); },
     accept(content, { finishedConfirmation = false } = {}) {
       if (closed || draining) return;
       if (content.inputTranscription) {
@@ -172,6 +187,31 @@ export function createIntakeSession({ extract, send, onValidated = () => {}, onC
         finishPatient(finishedConfirmation);
         if (modelBuffer.trim() && unansweredQuestion === null) question = modelBuffer.trim();
         modelBuffer = '';
+      }
+    },
+    async acceptMedicationSafety(content) {
+      if (closed || draining || !content?.inputTranscription) return false;
+      medicationSafetyBuffer = (medicationSafetyBuffer + (content.inputTranscription.text || '')).slice(0, 6000);
+      if (!content.inputTranscription.finished && !content.turnComplete) return false;
+      const text = medicationSafetyBuffer.trim(); medicationSafetyBuffer = '';
+      if (!text) return false;
+      if (inFlight) await inFlight;
+      if (closed || draining) return false;
+      const utterance = { id: ++sequence, role: 'Patient', text,
+        question: 'Medication review safety check. Extract only an explicit closed-set emergency red flag; otherwise return no updates.' };
+      try {
+        const patch = await extract({ utterances: [utterance], intake: structuredClone(intake), signal: undefined });
+        const updates = Array.isArray(patch?.updates) ? patch.updates.filter(update => update?.kind === 'redFlag') : [];
+        const result = mergeBatch(intake, { updates }, [utterance]);
+        intake = result.intake;
+        if (result.acceptedCount) {
+          send({ type: 'intake-update', intake: structuredClone(intake) });
+          onValidated(structuredClone(intake));
+        }
+        return result.acceptedCount > 0;
+      } catch {
+        // Medication answers never fall back into ordinary intake evidence.
+        return false;
       }
     },
     drain() {
@@ -195,6 +235,6 @@ export function createIntakeSession({ extract, send, onValidated = () => {}, onC
       return completion;
     },
     resume() { draining = false; completion = undefined; drainRevision++; schedule(); },
-    close(source = 'session_cleanup') { closeSource = source; closed = true; clearTimeout(timer); controller?.abort(); pending = []; patientBuffer = ''; modelBuffer = ''; intake = emptyIntake(); },
+    close(source = 'session_cleanup') { closeSource = source; closed = true; clearTimeout(timer); controller?.abort(); pending = []; patientBuffer = ''; medicationSafetyBuffer = ''; modelBuffer = ''; intake = emptyIntake(); },
   };
 }

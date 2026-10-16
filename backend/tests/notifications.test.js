@@ -93,7 +93,9 @@ test('dispatcher notification requires acknowledged emergency plus approval and 
   await caseStore.acknowledgeEmergency(caseId); const fleet = await caseStore.listAmbulances(), original = await caseStore.getCase(caseId);
   const service = createClinicalService({ caseId, caseStore, store, notificationsEnabled: true, model: context => ({ ...assessment(context), recommendedActions: [{ toolName: 'notify_dispatcher', arguments: {}, proposedRisk: 'READ_ONLY', expectedOutcome: 'Fictional dispatcher review only.' }] }) });
   await service.append(observationSet()); await service.tick(); const first = await service.view();
+  const center = createNotificationCenter({ sources: [{ scope: 'clinical', subjectId: caseId, store, service }] });
   assert.equal(first.notifications[0].status, 'pending'); await assert.rejects(service.execute(first.approvals[0].approvalId));
-  await service.decide(first.approvals[0].approvalId, 'approved'); await service.execute(first.approvals[0].approvalId); await service.execute(first.approvals[0].approvalId);
+  await assert.rejects(center.decide(first.notifications[0].notificationId, 'approved', ['doctor']), error => error.code === 'NOTIFICATION_SCOPE_VIOLATION' && error.status === 403);
+  await center.decide(first.notifications[0].notificationId, 'approved', ['dispatcher']); await service.execute(first.approvals[0].approvalId); await service.execute(first.approvals[0].approvalId);
   const next = await service.view(); assert.equal(next.notifications[0].status, 'sent'); assert.equal(next.receipts.length, 1); assert.deepEqual(await caseStore.listAmbulances(), fleet); assert.deepEqual(await caseStore.getCase(caseId), original);
 });

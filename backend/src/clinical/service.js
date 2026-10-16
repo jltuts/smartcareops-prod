@@ -10,11 +10,14 @@ import { digest, exact, requireThat, scope, token, policy, validateObservations,
 import { queryTool, simulateClinicalReview, fictionalHistory } from './tools.js';
 import { createClinicalModel, clinicalModel, configurationVersion } from './model.js';
 import { handoffTool } from '../hospital/contracts.js';
+import { clinicalAssessmentSource } from '../agent-platform/clinical-cutover.js';
+import { managedClinicalAssessmentEvidenceRefs } from '../agent-platform/clinical-managed-client.js';
 
 const values = object => Object.values(object);
 const iso = n => new Date(n).toISOString();
 const MAX_RUNS = 8, MAX_CALLS = 12, MAX_OBSERVATIONS = 60, MAX_EVENTS = 180;
-export function createClinicalService({ store, caseStore, caseId, model = createClinicalModel(), modelName = clinicalModel(), now = Date.now, simulate = simulateClinicalReview, resources = null, investigator = resources ? createResourceInvestigator() : null, notificationsEnabled = false, notificationOptions = {}, hospitalHandoff = null }) {
+const patientIntakeCase = patientCase => ['chat_intake', 'live_intake'].includes(patientCase?.intakeSource);
+export function createClinicalService({ store, caseStore, caseId, model = createClinicalModel(), modelName = clinicalModel(), now = Date.now, simulate = simulateClinicalReview, resources = null, investigator = resources ? createResourceInvestigator() : null, notificationsEnabled = false, notificationOptions = {}, hospitalHandoff = null, requireCaseReviewForActions = false, labReportStore = null }) {
   requireThat(validCaseId(caseId), 'INVALID_CASE_ID');
   let stopped = false, activeTick;
   const browserConfirmations = new Map();
@@ -22,20 +25,35 @@ export function createClinicalService({ store, caseStore, caseId, model = create
   const write = change => store.transaction(caseId, change);
   const notificationSource = { scope: 'clinical', subjectId: caseId, agentType: 'clinical' };
   const notificationActionId = (state, name) => `m12_${state.meta.observationVersion}_${state.resourceEnvironment?.version || 0}_${name}`;
+  async function verifiedLab(reportId) {
+    if (!labReportStore) return null;
+    const report = (await labReportStore.list(caseId)).find(item => item.reportId === reportId);
+    if (report?.status !== 'verified' || !Number.isInteger(report.verifiedResult?.revision) || !Array.isArray(report.verifiedResult?.rows)) return null;
+    const { revision, rows } = report.verifiedResult;
+    const evidence = { reportId, revision, rows: rows.map(({ sourceIndex, testName, resultText, numericValue, unit, referenceRange, sourceLocation }) =>
+      ({ sourceIndex, testName, resultText, numericValue, unit, referenceRange, sourceLocation })) };
+    return { ...evidence, evidenceRef: `LAB_${reportId.replaceAll('-', '_')}_R${revision}`, evidenceDigest: digest(evidence) };
+  }
+  async function requireReviewedCase() {
+    if (!requireCaseReviewForActions) return;
+    const patient = await caseStore.getCase(caseId);
+    if (!patientIntakeCase(patient)) return;
+    requireThat(patient?.clinicalReview?.status === 'approved', 'CLINICAL_REVIEW_REQUIRED', 409);
+  }
   function event(state, type, id, version = state.meta.observationVersion, causationId = null) {
     if (state.events[id]) return state.events[id];
     requireThat(values(state.events).length < MAX_EVENTS, 'EVENT_LIMIT', 409);
     return state.events[id] = durableEvent({ eventId: id, type, subjectType: 'case', subjectId: caseId, version, now: now(), causationId, scope,
-      pending: ['observation.recorded', 'agent.run.requested', 'monitor.due', 'resource.updated'].includes(type), extra: { resourceVersion: state.resourceEnvironment?.version || 0, fleetEvidenceVersion: state.fleetEvidenceVersion || null } });
+      pending: ['observation.recorded', 'agent.run.requested', 'lab.assessment.requested', 'monitor.due', 'resource.updated'].includes(type), extra: { resourceVersion: state.resourceEnvironment?.version || 0, fleetEvidenceVersion: state.fleetEvidenceVersion || null } });
   }
   async function enroll() {
     const patientCase = await caseStore.getCase(caseId);
     requireThat(patientCase?.source === 'smartcareops_demo', 'FICTIONAL_CASE_REQUIRED', 409);
     return write(state => {
       const created = !state.meta;
-      if (created) state.meta = { caseId, ...scope, createdAt: iso(now()), observationVersion: patientCase.intakeSource === 'live_intake' ? 1 : 0, currentRevisionId: null, runCount: 0, modelCalls: 0, ready: false, active: null, storageVersion: 0 };
+      if (created) state.meta = { caseId, ...scope, createdAt: iso(now()), observationVersion: patientIntakeCase(patientCase) ? 1 : 0, currentRevisionId: null, runCount: 0, modelCalls: 0, ready: false, active: null, storageVersion: 0 };
       if (resources && !state.resourceEnvironment) initializeResources(state, now());
-      if (created && patientCase.intakeSource === 'live_intake') event(state, 'agent.run.requested', 'case_received', 1);
+      if (created && patientIntakeCase(patientCase)) event(state, 'agent.run.requested', 'case_received', 1);
       return state.meta;
     });
   }
@@ -75,7 +93,20 @@ export function createClinicalService({ store, caseStore, caseId, model = create
   async function requestRun(requestId) {
     requireThat(token(requestId)); await enroll();
     const patient = await caseStore.getCase(caseId);
-    return write(state => { requireThat(state.meta.observationVersion > 0 || patient?.workflowStatus === 'submitted_for_clinical_review', 'OBSERVATIONS_REQUIRED', 409); return event(state, 'agent.run.requested', `request_${requestId}`); });
+    return write(state => { requireThat(state.meta.observationVersion > 0 || ['submitted_for_clinical_review', 'routed_to_doctor'].includes(patient?.workflowStatus), 'OBSERVATIONS_REQUIRED', 409); return event(state, 'agent.run.requested', `request_${requestId}`); });
+  }
+  async function requestLabRun({ requestId, reportId, expectedRevision }) {
+    requireThat(token(requestId) && typeof reportId === 'string' && Number.isInteger(expectedRevision) && expectedRevision > 0);
+    const patient = await caseStore.getCase(caseId);
+    requireThat(patient?.routing?.status === 'routed' && !patient.emergency, 'CASE_NOT_FOUND', 404);
+    const lab = await verifiedLab(reportId);
+    requireThat(lab && lab.revision === expectedRevision, 'LAB_REVISION_STALE', 409);
+    await enroll();
+    return write(state => {
+      const id = `lab_request_${requestId}`, existing = state.events[id];
+      if (existing) { requireThat(existing.labBinding?.evidenceDigest === lab.evidenceDigest, 'IDEMPOTENCY_CONFLICT', 409); return existing; }
+      return Object.assign(event(state, 'lab.assessment.requested', id), { labBinding: { reportId, revision: lab.revision, evidenceDigest: lab.evidenceDigest } });
+    });
   }
   function currentApproval(state, approval) {
     const revision = state.plans[approval?.revisionId];
@@ -93,7 +124,8 @@ export function createClinicalService({ store, caseStore, caseId, model = create
   async function decide(approvalId, decision, reviewerId = 'demo_doctor') {
     requireThat(token(approvalId) && ['approved', 'rejected', 'deferred', 'revoked'].includes(decision));
     requireThat(typeof reviewerId === 'string' && reviewerId.length > 0 && reviewerId.length <= 128);
-    return write(state => {
+    if (decision === 'approved') await requireReviewedCase();
+    const approval = await write(state => {
       const approval = state.approvals[approvalId]; currentApproval(state, approval);
       if (approval.status === decision) return approval;
       requireThat(decision === 'revoked' ? approval.status === 'approved' && !values(state.toolExecutions).some(e => e.approvalId === approvalId && (e.status === 'succeeded' || e.toolName === handoffTool && ['running', 'unknown_outcome'].includes(e.status))) : approval.status === 'pending', 'APPROVAL_NOT_PENDING', 409);
@@ -102,6 +134,21 @@ export function createClinicalService({ store, caseStore, caseId, model = create
       event(state, 'approval.decided', `decision_${approvalId}_${decision}`);
       return approval;
     });
+    return approval;
+  }
+  async function decideCaseReview(requestId, decision, reviewer = 'demo_doctor') {
+    requireThat(token(requestId) && ['approved', 'rejected', 'deferred'].includes(decision));
+    const reviewerId = typeof reviewer === 'string' ? reviewer : reviewer?.uid;
+    requireThat(typeof reviewerId === 'string' && reviewerId.length > 0 && reviewerId.length <= 128);
+    requireThat(typeof caseStore.decideClinicalReview === 'function', 'CLINICAL_REVIEW_UNAVAILABLE', 503);
+    let reviewerProfile = null;
+    if (typeof reviewer === 'object') {
+      const patientCase = await caseStore.getCase(caseId);
+      const routedSpecialty = patientCase?.routing?.specialty;
+      requireThat(Array.isArray(reviewer.specialties) && reviewer.specialties.includes(routedSpecialty), 'DOCTOR_SPECIALTY_MISMATCH', 403);
+      reviewerProfile = { displayName: reviewer.displayName, specialty: routedSpecialty };
+    }
+    return caseStore.decideClinicalReview(caseId, { requestId, decision, reviewerId, reviewerProfile });
   }
   function journal(state, revision, action, approvalId = null) {
     const executionId = `exec_${action.actionId}`;
@@ -174,6 +221,7 @@ export function createClinicalService({ store, caseStore, caseId, model = create
     return { status: approved ? 'approved' : 'rejected' };
   }
   async function execute(approvalId) {
+    await requireReviewedCase();
     const snapshot = await store.read(caseId);
     const proposed = snapshot.plans[snapshot.approvals[approvalId]?.revisionId]?.recommendedActions.find(a => a.actionId === snapshot.approvals[approvalId]?.actionId);
     if (proposed?.toolName === handoffTool) return executeHospital(approvalId);
@@ -256,26 +304,34 @@ export function createClinicalService({ store, caseStore, caseId, model = create
         event(state, 'monitor.due', `monitor_${monitor.nextEvaluationAt.replace(/[^0-9]/g, '')}`);
         monitor.nextEvaluationAt = iso(now() + 300000);
       }
-      const pending = values(state.events).filter(e => e.status === 'pending').sort((a, b) => b.subjectVersion - a.subjectVersion);
+      const pending = values(state.events).filter(e => e.status === 'pending').sort((a, b) => b.subjectVersion - a.subjectVersion || Number(b.type === 'lab.assessment.requested') - Number(a.type === 'lab.assessment.requested'));
       for (const e of pending) if (e.subjectVersion < state.meta.observationVersion || (e.resourceVersion || 0) < (state.resourceEnvironment?.version || 0) || (e.fleetEvidenceVersion || null) !== (state.fleetEvidenceVersion || null)) e.status = 'stale';
       const trigger = pending.find(e => e.status === 'pending'); if (!trigger) return null;
       if (state.meta.runCount >= MAX_RUNS || state.meta.modelCalls + (resources ? 2 : 1) > MAX_CALLS) { trigger.status = 'bounded'; if (monitor) monitor.status = 'bounded'; return null; }
       const runId = `run_${trigger.eventId}_${(trigger.attempt || 0) + 1}`;
       trigger.attempt = (trigger.attempt || 0) + 1; trigger.status = 'processing';
       // Coalesce duplicate triggers for the same observation version.
-      for (const e of pending) if (e !== trigger && e.status === 'pending') e.status = 'coalesced';
+      for (const e of pending) if (e !== trigger && e.status === 'pending' && (trigger.type === 'lab.assessment.requested' || e.type !== 'lab.assessment.requested')) e.status = 'coalesced';
       state.meta.runCount++; state.meta.modelCalls += resources ? 2 : 1; state.meta.ready = false;
       state.meta.active = { runId, claimId, leaseUntil: iso(now() + (resources ? 120000 : 75000)) };
-      const run = state.agentRuns[runId] = { runId, agentType: 'clinical', caseId, triggerEventId: trigger.eventId, inputVersions: { observations: state.meta.observationVersion, history: 1, resources: state.resourceEnvironment?.version || 0, fleet: state.fleetEvidenceVersion || null },
+      const run = state.agentRuns[runId] = { runId, agentType: 'clinical', caseId, triggerEventId: trigger.eventId, inputVersions: { observations: state.meta.observationVersion, history: 1, resources: state.resourceEnvironment?.version || 0, fleet: state.fleetEvidenceVersion || null, ...(trigger.labBinding ? { lab: trigger.labBinding.evidenceDigest } : {}) },
         model: modelName, configurationVersion, status: 'investigating', attempt: trigger.attempt, startedAt: iso(now()), completedAt: null, assessmentSummary: null, planRevisionId: null, toolExecutionIds: [], ...scope };
       return { run: structuredClone(run), state: structuredClone(state) };
     });
     if (!claim) return;
     const { run } = claim;
     try {
-      const patientCase = await caseStore.getCase(caseId), livePatientCase = patientCase?.intakeSource === 'live_intake';
+      const patientCase = await caseStore.getCase(caseId), livePatientCase = patientIntakeCase(patientCase);
       const context = { caseId, simulation: true, reportedFactsPolicy: 'Patient-reported facts are immutable evidence; interpretations and doctor assessment are separate.', ...(hospitalHandoff ? { hospitalHandoffTargets: hospitalHandoff.targets } : {}), ...(notificationsEnabled ? { notificationTools: availableTools(notificationSource, claim.state) } : {}), observationVersion: claim.state.meta.observationVersion, investigation: {}, evidenceRefs: livePatientCase ? ['case'] : ['case', 'history'], previousPlan: claim.state.plans[claim.state.meta.currentRevisionId] || null,
         completedActions: values(claim.state.toolExecutions).filter(e => e.status === 'succeeded').map(e => ({ toolName: e.toolName, outcome: e.outcome, observationVersion: claim.state.plans[e.planRevisionId]?.inputVersion || null })) };
+      const labBinding = claim.state.events[run.triggerEventId].labBinding;
+      if (context.previousPlan?.labBinding && (!labBinding || context.previousPlan.labBinding.evidenceDigest !== labBinding.evidenceDigest)) context.previousPlan = null;
+      if (labBinding) {
+        const lab = await verifiedLab(labBinding.reportId);
+        requireThat(lab?.evidenceDigest === labBinding.evidenceDigest, 'LAB_REVISION_STALE', 409);
+        context.verifiedLabReport = lab;
+        context.evidenceRefs.push(lab.evidenceRef);
+      }
       if (resources) context.resourceChanges = values(claim.state.events)
         .filter(e => e.type === 'resource.updated' && e.changedHospitalId && e.resourceVersion === claim.state.resourceEnvironment.version)
         .map(e => ({ eventId: e.eventId, hospitalId: e.changedHospitalId, previousMonitoredBedsAvailable: e.previousMonitoredBedsAvailable,
@@ -319,7 +375,10 @@ export function createClinicalService({ store, caseStore, caseId, model = create
       }
       const signal = AbortSignal.timeout(60000);
       const assessment = await Promise.race([model(context, signal), new Promise((_, reject) => signal.addEventListener('abort', () => reject(signal.reason), { once: true }))]);
-      validateAssessment(assessment, context.evidenceRefs);
+      const assessmentSource = clinicalAssessmentSource(assessment) || 'gemini-api';
+      const assessmentEvidenceRefs = managedClinicalAssessmentEvidenceRefs(assessment) || context.evidenceRefs;
+      validateAssessment(assessment, assessmentEvidenceRefs);
+      if (labBinding) requireThat((await verifiedLab(labBinding.reportId))?.evidenceDigest === labBinding.evidenceDigest, 'LAB_REVISION_STALE', 409);
       const revisionId = await write(s => {
         if (s.meta.active?.claimId !== claimId) return null;
         const record = s.agentRuns[run.runId]; s.meta.active = null;
@@ -327,14 +386,14 @@ export function createClinicalService({ store, caseStore, caseId, model = create
         const version = values(s.plans).length + 1, revisionId = `revision_${version}`, planId = `plan_${caseId}`;
         for (const proposal of assessment.recommendedActions) if (isActionTool(proposal.toolName)) requireThat(notificationsEnabled && availableTools(notificationSource, s).includes(proposal.toolName), 'NOTIFICATION_TOOL_UNAVAILABLE', 409);
         if (notificationsEnabled) supersedeNotifications(s, now());
-        const actions = assessment.recommendedActions.filter(proposal => !isActionTool(proposal.toolName) || !s.receipts[`receipt_exec_${notificationActionId(s, proposal.toolName)}`]).map((proposal, index) => ({ ...proposal, actionId: isActionTool(proposal.toolName) ? notificationActionId(s, proposal.toolName) : proposal.toolName === 'simulate_clinical_review' ? `review_observation_${s.meta.observationVersion}` : `${revisionId}_action_${index}`, arguments: isActionTool(proposal.toolName) ? bindArguments(proposal.toolName, notificationSource, notificationOptions) : proposal.arguments || {}, dependencies: [],
+        const actions = (labBinding ? [] : assessment.recommendedActions.filter(proposal => !isActionTool(proposal.toolName) || !s.receipts[`receipt_exec_${notificationActionId(s, proposal.toolName)}`])).map((proposal, index) => ({ ...proposal, actionId: isActionTool(proposal.toolName) ? notificationActionId(s, proposal.toolName) : proposal.toolName === 'simulate_clinical_review' ? `review_observation_${s.meta.observationVersion}` : `${revisionId}_action_${index}`, arguments: isActionTool(proposal.toolName) ? bindArguments(proposal.toolName, notificationSource, notificationOptions) : proposal.arguments || {}, dependencies: [],
           ...policy(proposal.toolName, proposal.arguments || {}), status: 'proposed', validityConditions: { observationVersion: s.meta.observationVersion, historyVersion: 1, resourceVersion: 'receipt-simulator-v1', resourceEvidenceVersion: run.inputVersions.resources } }));
         for (const action of actions.filter(a => a.toolName === handoffTool)) {
           requireThat(hospitalHandoff, 'HOSPITAL_HANDOFF_DISABLED', 409);
           action.handoffBinding = hospitalHandoff.binding(context.investigation.read_case, action.arguments.hospitalId);
           action.actionId = 'hospital_' + digest({ caseId, hospitalId: action.arguments.hospitalId, payloadDigest: action.handoffBinding.payloadDigest }).slice(0, 32);
         }
-        immutablePlan(s, { ...assessment, recommendedActions: actions, planId, revisionId, caseId, version, inputVersion: s.meta.observationVersion, resourceEvidenceVersion: run.inputVersions.resources, fleetEvidenceVersion: run.inputVersions.fleet, resourceSnapshotIds: (context.resourceInvestigation || []).map(r => r.snapshotId), evidenceRefs: context.evidenceRefs,
+        immutablePlan(s, { ...assessment, assessmentSource, recommendedActions: actions, ...(labBinding ? { labBinding } : {}), planId, revisionId, caseId, version, inputVersion: s.meta.observationVersion, resourceEvidenceVersion: run.inputVersions.resources, fleetEvidenceVersion: run.inputVersions.fleet, resourceSnapshotIds: (context.resourceInvestigation || []).map(r => r.snapshotId), evidenceRefs: assessmentEvidenceRefs,
           createdAt: iso(now()), supersedesRevisionId: s.meta.currentRevisionId, ...scope });
         for (const approval of values(s.approvals)) if (['pending', 'approved'].includes(approval.status)) approval.status = 'superseded';
         for (const action of actions.filter(a => a.approvalRequired)) {
@@ -345,11 +404,12 @@ export function createClinicalService({ store, caseStore, caseId, model = create
             resourceVersion: 'receipt-simulator-v1', resourceEvidenceVersion: run.inputVersions.resources, fleetEvidenceVersion: run.inputVersions.fleet, reviewer: null, status: 'pending', createdAt: iso(now()), decidedAt: null, expiresAt: iso(now() + 900000), ...scope };
         }
         if (notificationsEnabled) stageNotifications(s, notificationSource, s.plans[revisionId], actions, now());
-        Object.assign(record, { status: 'completed', completedAt: iso(now()), assessmentSummary: assessment.changeSummary, planRevisionId: revisionId });
+        Object.assign(record, { model: assessmentSource, status: 'completed', completedAt: iso(now()), assessmentSummary: assessment.changeSummary, planRevisionId: revisionId });
         s.meta.currentRevisionId = revisionId; s.meta.ready = true; s.events[run.triggerEventId].status = 'completed';
         event(s, 'plan.proposed', `proposed_${revisionId}`, s.meta.observationVersion, run.triggerEventId);
         s.monitoring.main = monitoringRecord({ scope, subject: { caseId }, revisionId, conditions: assessment.monitoringConditions, now: now(), extra: {
           lastProcessedObservationVersion: s.meta.observationVersion, lastProcessedResourceVersion: run.inputVersions.resources, lastProcessedFleetVersion: run.inputVersions.fleet } });
+        if (labBinding) s.monitoring.main.status = 'bounded';
         return revisionId;
       });
       if (revisionId) await autoActions(revisionId);
@@ -393,17 +453,25 @@ export function createClinicalService({ store, caseStore, caseId, model = create
     return activeTick;
   }
   async function view() {
-    const patientCase = await caseStore.getCase(caseId), livePatientCase = patientCase?.intakeSource === 'live_intake';
+    const patientCase = await caseStore.getCase(caseId), livePatientCase = patientIntakeCase(patientCase);
     if (livePatientCase) await enroll();
     const state = await store.read(caseId);
-    return { enabled: true, storage: store.storage, caseId, ...scope, meta: state.meta, history: livePatientCase ? { source: 'patient_case', version: 1, conditions: [], disclaimer: 'No additional history was inferred.' } : fictionalHistory,
-      patientCase: { intakeSource: patientCase?.intakeSource || null, workflowStatus: patientCase?.workflowStatus || null, emergency: patientCase?.emergency || null },
+    const current = state.plans[state.meta?.currentRevisionId];
+    const labCurrent = !current?.labBinding || (await verifiedLab(current.labBinding.reportId))?.evidenceDigest === current.labBinding.evidenceDigest;
+    return { enabled: true, storage: store.storage, caseId,
+      reviewGateEnabled: requireCaseReviewForActions && patientIntakeCase(patientCase),
+      ...scope, meta: labCurrent ? state.meta : { ...state.meta, ready: false }, history: livePatientCase ? { source: 'patient_case', version: 1, conditions: [], disclaimer: 'No additional history was inferred.' } : fictionalHistory,
+      patientCase: { intakeSource: patientCase?.intakeSource || null, workflowStatus: patientCase?.workflowStatus || null,
+        clinicalReview: patientCase?.clinicalReview || null, emergency: patientCase?.emergency || null,
+        appointmentProposal: patientCase?.appointmentProposal || null, ambulance: patientCase?.ambulance || null,
+        handoffStatus: patientCase?.handoffStatus || null, routing: patientCase?.routing || null,
+        hospitalHandoffs: patientCase?.hospitalHandoffs || [] },
       resourcesEnabled: !!resources, notifications: values(state.notifications || {}), followups: values(state.followups || {}), resourceEnvironment: state.resourceEnvironment, resourceSnapshots: values(state.resourceSnapshots),
       observations: values(state.observations).sort((a,b) => a.observedAt.localeCompare(b.observedAt)), events: values(state.events), runs: values(state.agentRuns),
-      plans: values(state.plans).map(plan => ({ ...plan, status: plan.revisionId === state.meta?.currentRevisionId ? 'current' : 'superseded', recommendedActions: plan.recommendedActions.map(action => {
+      plans: values(state.plans).map(plan => ({ ...plan, status: plan.revisionId === state.meta?.currentRevisionId ? labCurrent ? 'current' : 'stale' : 'superseded', recommendedActions: plan.recommendedActions.map(action => {
         const execution = state.toolExecutions[`exec_${action.actionId}`], approval = values(state.approvals).find(a => a.revisionId === plan.revisionId && a.actionId === action.actionId);
         return { ...action, status: execution?.status || approval?.status || (plan.revisionId === state.meta?.currentRevisionId ? 'pending' : 'superseded'), approvalId: approval?.approvalId || null };
       }) })), approvals: values(state.approvals), executions: values(state.toolExecutions), receipts: values(state.receipts), monitoring: state.monitoring.main || null };
   }
-  return { caseId, enroll, append, changeCapacity, requestRun, decide, execute, confirmHospitalAction, tick, view, async close() { stopped = true; for (const pending of browserConfirmations.values()) pending.finish(false); await activeTick; await store.close(); } };
+  return { caseId, enroll, append, changeCapacity, requestRun, requestLabRun, decide, decideCaseReview, execute, confirmHospitalAction, tick, view, async close() { stopped = true; for (const pending of browserConfirmations.values()) pending.finish(false); await activeTick; await store.close(); } };
 }

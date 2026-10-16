@@ -35,7 +35,7 @@ for (const finalSpeech of [true, false]) test(`emergency terminal UI preserves s
       await opened;
     });
     await page.goto('/patient');
-    await page.locator('#intake-fictional').check();
+    await page.locator('[data-intake-mode="voice"]:visible').first().click(); await page.locator('#intake-fictional').check();
     await page.getByRole('button', { name: 'Start Conversation' }).click();
     await expect(page.locator('#connection-status')).toHaveText('Connected');
     const emit = content => callbacks.onmessage({ serverContent: content });

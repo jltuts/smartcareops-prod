@@ -1,0 +1,23 @@
+.operational-map { min-width: 0; overflow: hidden; border: 1px solid #c9d8d2; border-radius: 20px; background: #fff; box-shadow: 0 12px 34px rgb(23 63 57 / 9%); }
+.operational-map-header { display: flex; align-items: flex-end; justify-content: space-between; gap: 20px; padding: 18px 20px 14px; }
+.operational-map-header h3 { margin: 3px 0; font-size: 20px; }
+.operational-map-header p { margin: 0; color: #60736b; font-size: 12px; }
+.map-legend { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: 8px 14px; color: #51675e; font-size: 11px; }
+.map-legend span { display: inline-flex; align-items: center; gap: 6px; }
+.legend-dot { width: 9px; height: 9px; border-radius: 50%; background: #176c61; }
+.legend-dot.ambulance { border-radius: 2px; background: #236ea0; transform: rotate(45deg); }
+.legend-dot.patient { background: #137f89; box-shadow: 0 0 0 3px #d8eff0; }
+.legend-dot.cluster { border: 2px solid #d47b30; background: #fff4e8; }
+.operational-map-stage { position: relative; min-height: 510px; overflow: hidden; border-block: 1px solid #d7e1dc; background: #eaf1ee; isolation: isolate; }
+.google-map-canvas { position: absolute; inset: 0; }
+.google-map-canvas[data-map-ready="false"]::before { content: "Google Maps configuration required"; position: absolute; inset: 0; display: grid; place-items: center; padding: 30px; color: #52665e; background: #eef4f1; font-weight: 700; text-align: center; }
+.map-demo-label { position: absolute; z-index: 4; right: 12px; bottom: 12px; padding: 5px 8px; border-radius: 7px; background: rgb(18 63 59 / 82%); color: #fff; font-size: 9px; font-weight: 800; letter-spacing: .1em; pointer-events: none; }
+.map-entity-list { display: flex; flex-wrap: wrap; gap: 6px; padding: 10px 14px 0; }
+.map-entity { padding: 4px 7px; border-radius: 999px; background: #edf4f1; color: #355b50; font-size: 10px; font-weight: 700; }
+.map-entity-ambulance { background: #e8f2f8; color: #245d7d; }
+.map-entity-patient { background: #e1f3f2; color: #17676d; }
+.map-entity-cluster { border: 1px solid #e3b77e; background: #fff2df; color: #77451d; }
+.map-entity.state-critical, .map-entity-cluster.severity-critical { border-color: #e3aaaa; background: #fff0ef; color: #922f31; }
+.operational-map footer { padding: 10px 18px; }
+.operational-map footer p { margin: 0; color: #60736b; font-size: 11px; }
+@media (max-width: 800px) { .operational-map-header { align-items: flex-start; flex-direction: column; } .map-legend { justify-content: flex-start; } .operational-map-stage { min-height: 360px; } }

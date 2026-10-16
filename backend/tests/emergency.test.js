@@ -4,7 +4,7 @@ import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { WebSocket } from 'ws';
 import { attachLiveRelay } from '../src/live.js';
-import { emergencyEscalation, emergencyMessage } from '../src/emergency.js';
+import { emergencyEscalation, emergencyFacilityMessage, emergencyMessage } from '../src/emergency.js';
 import { emptyIntake, redFlagTypes } from '../src/intake/schema.js';
 import { createIntakeSession } from '../src/intake/session.js';
 import { mergeIntake } from '../src/intake/validate.js';
@@ -56,6 +56,40 @@ test('workflow notification occurs only after successful atomic validation', asy
   assert.equal(emergencyEscalation(snapshots[0]), null);
 });
 
+test('emergency hospital lookup publishes bounded exact browser-speech phases', async t => {
+  const server = createServer(); let callbacks;
+  const inputs = [], clientContent = [], messages = [];
+  const relay = attachLiveRelay(server, {
+    apiKey: 'fake', emergencyTimeoutMs: 1000, emergencyFacilityLookupTimeoutMs: 20,
+    facilityCoordinator: { lookupEmergency: async () => new Promise(() => {}) },
+    connect: async options => {
+      callbacks = options.callbacks; queueMicrotask(() => callbacks.onmessage({ setupComplete: {} }));
+      return { sendRealtimeInput: value => inputs.push(value), sendClientContent: value => clientContent.push(value), close() {} };
+    },
+    extract: async ({ utterances }) => ({ updates: utterances.map(u => update(u, { kind: 'redFlag', label: 'current chest pain', status: 'confirmed' })) }),
+  });
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const ws = new WebSocket(`ws://127.0.0.1:${server.address().port}/api/live`, { origin: 'http://localhost:5173' });
+  t.after(async () => { ws.terminate(); for (const client of relay.clients) client.terminate(); relay.close(); await new Promise(resolve => server.close(resolve)); });
+  ws.on('message', raw => messages.push(JSON.parse(raw)));
+  await once(ws, 'open'); ws.send(JSON.stringify({ type: 'start' })); await until(() => messages.some(m => m.type === 'ready'));
+
+  callbacks.onmessage({ serverContent: { inputTranscription: { text: 'I have chest pain now.', finished: true } } });
+  await until(() => messages.some(m => m.type === 'emergency-escalation'));
+  const escalation = messages.find(m => m.type === 'emergency-escalation');
+  assert.equal(escalation.message, emergencyMessage);
+  assert.equal(inputs.filter(item => item.text?.includes(emergencyMessage)).length, 0);
+  await until(() => messages.some(m => m.type === 'emergency-phase-speech' && m.phase === 'warning'));
+  assert.equal(messages.find(m => m.type === 'emergency-phase-speech' && m.phase === 'warning').text, emergencyMessage);
+  assert.deepEqual(clientContent, [{ turnComplete: true }]);
+  ws.send(JSON.stringify({ type: 'emergency-phase-settled', id: escalation.id, phase: 'warning' }));
+  await until(() => messages.some(m => m.type === 'emergency-phase-speech' && m.phase === 'facility'));
+  assert.equal(messages.find(m => m.type === 'emergency-phase-speech' && m.phase === 'facility').text, emergencyFacilityMessage());
+  ws.send(JSON.stringify({ type: 'emergency-phase-settled', id: escalation.id, phase: 'facility' }));
+  await until(() => messages.some(m => m.type === 'emergency-playback-ready'));
+  assert.equal(messages.some(m => m.type === 'audio' || m.type === 'transcript' && [emergencyMessage, emergencyFacilityMessage()].includes(m.text)), false);
+});
+
 for (const status of ['denied', 'unclear', 'confirmed']) test(`emergency decision requires confirmed evidenced flag: ${status}`, () => {
   const intake = emptyIntake();
   intake.redFlags = [{ type: 'current chest pain', status, patientReportedText: 'I have chest pain now.' }];
@@ -73,10 +107,10 @@ for (const status of ['denied', 'unclear', 'confirmed']) test(`emergency decisio
 for (const finalAudio of [true, false]) test(`emergency owns terminal session; final audio available=${finalAudio}`, async t => {
   const caseStore = createMemoryCaseStore(); let patientCase;
   const server = createServer(); let callbacks, closed = 0, issued = 0, requests = 0;
-  const inputs = [], messages = [];
+  const inputs = [], clientContent = [], messages = [];
   let release;
-  const relay = attachLiveRelay(server, { apiKey: 'fake', emergencyTimeoutMs: finalAudio ? 3000 : 100,
-    connect: async options => { callbacks = options.callbacks; queueMicrotask(() => callbacks.onmessage({ setupComplete: {} })); return { sendRealtimeInput: value => inputs.push(value), close() { closed++; } }; },
+  const relay = attachLiveRelay(server, { apiKey: 'fake', emergencyTimeoutMs: finalAudio ? 3000 : 100, emergencyResponseTimeoutMs: 20, emergencyPlaybackTimeoutMs: 100,
+    connect: async options => { callbacks = options.callbacks; queueMicrotask(() => callbacks.onmessage({ setupComplete: {} })); return { sendRealtimeInput: value => inputs.push(value), sendClientContent: value => clientContent.push(value), close() { closed++; } }; },
     onCompleted() { issued++; },
     onEmergency: async (intake, { caseId }) => { patientCase = await caseStore.createCase({ caseId, intake, emergency: true }); return patientCase; },
     extract: async ({ utterances }) => {
@@ -102,23 +136,24 @@ for (const finalAudio of [true, false]) test(`emergency owns terminal session; f
   assert.equal(escalation.snapshot.redFlags[0].status, 'confirmed');
   assert.equal(escalation.caseStatus, 'pending_dispatcher');
   const inputsBefore = inputs.length;
+  const controlsBefore = clientContent.length;
   ws.send(JSON.stringify({ type: 'audio', data: 'AAAAAA==', sampleRate: 16000 }));
   for (const text of ['Okay', 'Thank you', 'Goodbye']) emit({ inputTranscription: { text, finished: true } });
-  emit({ outputTranscription: { text: 'An unwanted repeated warning.' }, modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'AAAAAA==' } }] }, turnComplete: true });
-  if (finalAudio) {
-    const final = { outputTranscription: { text: emergencyMessage }, modelTurn: { parts: [{ inlineData: { mimeType: 'audio/pcm', data: 'AAAAAA==' } }] }, turnComplete: true };
-    emit(final); emit(final);
-    await until(() => messages.some(m => m.type === 'emergency-playback-ready'));
-    assert.equal(ws.readyState, WebSocket.OPEN, 'Wait for playback acknowledgement');
-    assert.equal(messages.filter(m => m.type === 'audio').length, 1);
-    ws.send(JSON.stringify({ type: 'emergency-settled', id: escalation.id }));
-  }
+  await until(() => messages.some(m => m.type === 'emergency-phase-speech' && m.phase === 'warning'));
+  emit({ outputTranscription: { text: 'An unwanted repeated warning.' }, turnComplete: true });
+  assert.equal(messages.some(m => m.type === 'audio' || m.type === 'transcript' && m.text === 'An unwanted repeated warning.'), false);
+  ws.send(JSON.stringify({ type: 'emergency-phase-settled', id: escalation.id, phase: 'warning' }));
+  await until(() => messages.some(m => m.type === 'emergency-playback-ready'));
+  assert.equal(ws.readyState, WebSocket.OPEN, 'Wait for playback acknowledgement');
+  assert.equal(messages.filter(m => m.type === 'audio').length, 0);
+  ws.send(JSON.stringify({ type: 'emergency-settled', id: escalation.id }));
   if (ws.readyState !== WebSocket.CLOSED) await once(ws, 'close');
   const count = messages.length;
   emit({ inputTranscription: { text: 'Goodbye', finished: true }, outputTranscription: { text: emergencyMessage }, turnComplete: true });
   assert.equal(messages.length, count);
   assert.equal(closed, 1); assert.equal(issued, 0); assert.equal(requests, 1);
-  assert.equal(inputs.length, inputsBefore);
+  assert.equal(inputs.length, inputsBefore, 'Patient realtime input is ignored after emergency commits');
+  assert.equal(clientContent.length, controlsBefore, 'Emergency acknowledgement never requests a Gemini speech turn');
   assert.equal(messages.filter(m => m.type === 'emergency-escalation').length, 1);
   assert.equal(messages.filter(m => m.type === 'intake-complete').length, 0);
   assert.equal(patientCase.workflowStatus, 'emergency_pending_dispatcher');
@@ -132,7 +167,7 @@ test('emergency playback settlement waits for durable persistence and never adve
   const messages = [];
   const relay = attachLiveRelay(server, {
     apiKey: 'fake', emergencyTimeoutMs: 3000,
-    connect: async options => { callbacks = options.callbacks; queueMicrotask(() => callbacks.onmessage({ setupComplete: {} })); return { sendRealtimeInput() {}, close() {} }; },
+    connect: async options => { callbacks = options.callbacks; queueMicrotask(() => callbacks.onmessage({ setupComplete: {} })); return { sendRealtimeInput() {}, sendClientContent() {}, close() {} }; },
     extract: async ({ utterances }) => ({ updates: utterances.map(u => update(u, { kind: 'redFlag', label: 'current chest pain', status: 'confirmed' })) }),
     onEmergency: async (_intake, { caseId }) => new Promise(resolve => { releasePersistence = () => resolve({ caseId, workflowStatus: 'emergency_pending_dispatcher', storage: 'firestore', emergency: { status: 'pending_dispatcher' } }); }),
   });
@@ -145,7 +180,8 @@ test('emergency playback settlement waits for durable persistence and never adve
   await until(() => messages.some(m => m.type === 'emergency-escalation') && releasePersistence);
   const escalation = messages.find(m => m.type === 'emergency-escalation');
   assert.equal(escalation.patientCase, undefined);
-  callbacks.onmessage({ serverContent: { outputTranscription: { text: emergencyMessage }, turnComplete: true } });
+  await until(() => messages.some(m => m.type === 'emergency-phase-speech' && m.phase === 'warning'));
+  ws.send(JSON.stringify({ type: 'emergency-phase-settled', id: escalation.id, phase: 'warning' }));
   await until(() => messages.some(m => m.type === 'emergency-playback-ready'));
   ws.send(JSON.stringify({ type: 'emergency-settled', id: escalation.id }));
   await new Promise(resolve => setTimeout(resolve, 25));
@@ -163,7 +199,7 @@ test('emergency persistence failure is surfaced without claiming a saved case', 
   const messages = [];
   const relay = attachLiveRelay(server, {
     apiKey: 'fake', emergencyTimeoutMs: 3000,
-    connect: async options => { callbacks = options.callbacks; queueMicrotask(() => callbacks.onmessage({ setupComplete: {} })); return { sendRealtimeInput() {}, close() {} }; },
+    connect: async options => { callbacks = options.callbacks; queueMicrotask(() => callbacks.onmessage({ setupComplete: {} })); return { sendRealtimeInput() {}, sendClientContent() {}, close() {} }; },
     extract: async ({ utterances }) => ({ updates: utterances.map(u => update(u, { kind: 'redFlag', label: 'current chest pain', status: 'confirmed' })) }),
     onEmergency: async () => { throw new Error('provider detail must stay private'); },
   });

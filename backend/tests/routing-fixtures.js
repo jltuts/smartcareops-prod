@@ -22,12 +22,17 @@ export function routingFirestoreMock() {
   return { docs, fleet, get writes() { return writes; }, collection(name) {
     if (!target(name)) throw new Error('Unexpected collection');
     return { doc: id => ({ id, collection: name, get: async () => snapshot(name, id) }), where(field, operator, value) {
-      const emergencyQuery = field === 'workflowStatus' && operator === 'in' && JSON.stringify(value) === JSON.stringify(['emergency_pending_dispatcher', 'emergency_acknowledged', 'ambulance_assigned', 'ambulance_en_route']);
+      const activeEmergency = ['emergency_pending_dispatcher', 'emergency_acknowledged', 'ambulance_assigned', 'ambulance_en_route', 'ambulance_at_pickup', 'patient_transporting', 'arrived_at_hospital'];
+      const emergencyQuery = field === 'workflowStatus' && operator === 'in' && [JSON.stringify(activeEmergency), JSON.stringify([...activeEmergency, 'emergency_response_completed'])].includes(JSON.stringify(value));
       const reviewQuery = field === 'workflowStatus' && operator === 'in' && JSON.stringify(value) === JSON.stringify(['submitted_for_clinical_review', 'routed_to_doctor']);
-      if (!emergencyQuery && !reviewQuery && (field !== 'routing.status' || operator !== '==' || value !== 'routed')) throw new Error('Unexpected query');
-      let count, after;
-      const query = { orderBy() { return query; }, limit(n) { count = n; return query; }, startAfter(id) { after = id; return query; },
-        async get() { return { docs: [...docs.values()].filter(doc => ((emergencyQuery || reviewQuery) ? value.includes(doc.workflowStatus) : doc.routing?.status === value) && (!after || doc.caseId > after)).sort((a, b) => a.caseId.localeCompare(b.caseId)).slice(0, count).map(doc => ({ data: () => structuredClone(doc) })) }; } };
+      const appointmentQuery = field === 'patientUid' && operator === '==' || field === 'appointmentNoticeDoctorUids' && operator === 'array-contains';
+      if (!emergencyQuery && !reviewQuery && !appointmentQuery && (field !== 'routing.status' || operator !== '==' || value !== 'routed')) throw new Error('Unexpected query');
+      let count, after, newestFirst = false;
+      const query = { orderBy(fieldName, direction) { if (fieldName === 'createdAt' && direction === 'desc') newestFirst = true; return query; }, limit(n) { count = n; return query; }, startAfter(...values) { after = values; return query; },
+        async get() { return { docs: [...docs.values()].filter(doc => (emergencyQuery || reviewQuery) ? value.includes(doc.workflowStatus) : appointmentQuery ? (operator === 'array-contains' ? (doc[field] || []).includes(value) : doc[field] === value) : doc.routing?.status === value)
+          .filter(doc => !after || newestFirst ? !after || doc.createdAt < after[0] || doc.createdAt === after[0] && doc.caseId < after[1] : doc.caseId > after[0])
+          .sort(newestFirst ? (a, b) => b.createdAt.localeCompare(a.createdAt) || b.caseId.localeCompare(a.caseId) : (a, b) => a.caseId.localeCompare(b.caseId))
+          .slice(0, count).map(doc => ({ data: () => structuredClone(doc) })) }; } };
       return query;
     } };
   }, runTransaction(work) {
@@ -35,8 +40,8 @@ export function routingFirestoreMock() {
       const staged = [];
       const result = await work({ get: async ref => { if (staged.length) throw new Error('All reads must precede writes'); return snapshot(ref.collection, ref.id); },
         create(ref, doc) { if (target(ref.collection).has(ref.id)) throw new Error('Already exists'); staged.push([ref, structuredClone(doc)]); },
-        set(ref, doc) { staged.push([ref, structuredClone(doc)]); } });
-      for (const [ref, doc] of staged) { writes++; target(ref.collection).set(ref.id, doc); }
+        set(ref, doc) { staged.push([ref, structuredClone(doc)]); }, delete(ref) { staged.push([ref, null]); } });
+      for (const [ref, doc] of staged) { writes++; if (doc === null) target(ref.collection).delete(ref.id); else target(ref.collection).set(ref.id, doc); }
       return result;
     });
     queue = next.catch(() => {}); return next;

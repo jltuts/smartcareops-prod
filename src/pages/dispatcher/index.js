@@ -2,26 +2,46 @@ import { apiFetch } from '../../auth/service.js';
 import { EmergencyStatus, emergencyStatusLabels } from '../../../shared/emergency.js';
 import { ambulanceStatusLabels } from '../../../shared/ambulance.js';
 import { mountAmbulanceControls } from './ambulance-controls.js';
+import { defaultMapAmbulances, defaultMapHospitals, operationalMapMarkup, renderOperationalMap } from '../../components/operational-map.js';
 import './dispatcher.css';
 
 export const renderDispatcher = () => `<section class="role-page dispatcher-page" aria-labelledby="page-heading">
-  <a class="back-link" href="/" data-link>← Back to home</a>
-  <p class="eyebrow">For response teams · Fictional demo</p><h1 id="page-heading" tabindex="-1">Dispatcher Portal</h1>
-  <p class="role-subtitle">Emergency cases awaiting review</p>
-  <p>Fictional ambulance simulator. Acknowledgement records a demo review only. No real ambulance is dispatched and no emergency service is contacted.</p>
-  <div class="dispatcher-toolbar"><button id="dispatcher-refresh" type="button">Refresh emergencies</button><span id="dispatcher-message" role="status" aria-live="polite"></span></div>
+  <header class="dispatcher-intro">
+    <div><a class="back-link" href="/" data-link>← Back to home</a><p class="eyebrow">SmartCareOps / Response workspace</p><h1 id="page-heading" tabindex="-1">Dispatcher Portal</h1><p class="role-subtitle">Review emergency cases, coordinate fictional units, and follow the response.</p></div>
+    <p class="dispatcher-demo-note"><strong>Fictional demo</strong><span>Acknowledgement records a review only. No real ambulance is dispatched and no emergency service is contacted.</span></p>
+  </header>
+  <div class="dispatcher-overview" aria-label="Loaded emergency queue summary"><div><span>Cases shown</span><strong id="dispatcher-total">—</strong></div><div><span>Awaiting review</span><strong id="dispatcher-pending">—</strong></div><div><span>Assigned units</span><strong id="dispatcher-assigned">—</strong></div></div>
+  <div class="dispatcher-toolbar"><div><p class="eyebrow">Live workspace</p><span id="dispatcher-message" role="status" aria-live="polite"></span></div><button id="dispatcher-refresh" type="button">Refresh emergencies</button></div>
   <p id="dispatcher-action" role="status" aria-live="polite"></p>
-  <div id="dispatcher-cases" class="dispatcher-cases"></div><button id="dispatcher-more" type="button" hidden>Load more emergencies</button>
-  <section id="dispatcher-detail" class="dispatcher-detail" aria-labelledby="dispatcher-detail-heading" hidden></section>
+  <div class="dispatcher-section-heading"><div><p class="eyebrow">Response geography</p><h2>Map and assignment</h2></div><p>Seeded demo locations; case-specific details appear when recorded.</p></div>
+  <div class="dispatcher-map-layout">
+    ${operationalMapMarkup({ id: 'dispatcher-operational-map', title: 'Response map', description: 'Seeded demo hospitals and fictional fleet reference positions.', legend: ['hospital', 'ambulance'] })}
+    <aside class="dispatcher-map-context" aria-labelledby="dispatcher-map-context-heading"><p class="eyebrow">Selected response</p><h2 id="dispatcher-map-context-heading">Assignment context</h2><dl><div><dt>Case</dt><dd id="dispatcher-map-case">Select an emergency case</dd></div><div><dt>Ambulance</dt><dd id="dispatcher-map-ambulance">Not assigned</dd></div><div><dt>Pickup</dt><dd id="dispatcher-map-pickup">Not available in the case record</dd></div><div><dt>Destination</dt><dd id="dispatcher-map-destination">Not assigned</dd></div><div><dt>ETA</dt><dd id="dispatcher-map-eta">Not available</dd></div></dl></aside>
+  </div>
+  <div class="dispatcher-section-heading dispatcher-work-heading"><div><p class="eyebrow">Case coordination</p><h2>Emergency queue</h2></div><p>Open a case to review its reported facts and available actions.</p></div>
+  <div class="dispatcher-work-layout"><div><div id="dispatcher-cases" class="dispatcher-cases"></div><button id="dispatcher-more" type="button" hidden>Load more emergencies</button></div><section id="dispatcher-detail" class="dispatcher-detail" aria-labelledby="dispatcher-detail-heading" hidden></section></div>
 </section>`;
 const text = (tag, value, className) => { const node = document.createElement(tag); node.textContent = value; if (className) node.className = className; return node; };
 const date = value => Number.isFinite(Date.parse(value)) ? new Date(value).toLocaleString() : 'Not recorded';
 const field = (parent, label, value) => { const p = document.createElement('p'); p.append(text('strong', `${label}: `), document.createTextNode(value || 'Not reported')); parent.append(p); };
+const statusClass = record => ['en_route', 'at_pickup', 'transporting'].includes(record.ambulance?.status) ? 'en-route' : record.ambulance ? 'assigned' : record.emergency.status === EmergencyStatus.PENDING ? 'pending' : 'acknowledged';
 
 export function mountDispatcher(outlet) {
+  outlet.classList.add('dispatcher-main');
   const find = name => outlet.querySelector(`#dispatcher-${name}`);
-  let disposed = false, queueController, detailController, actionController, queueGeneration = 0, detailGeneration = 0, nextCursor, selected, acknowledging = false, ambulanceCleanup;
+  let disposed = false, queueController, detailController, actionController, queueGeneration = 0, detailGeneration = 0, nextCursor, selected, selectedRecord, acknowledging = false, ambulanceCleanup;
   const seen = new Set();
+  const queueRecords = new Map(), mapRoot = find('operational-map');
+  function drawMap() {
+    const ambulances = defaultMapAmbulances();
+    for (const record of queueRecords.values()) if (record.ambulance) { const unit = ambulances.find(item => item.id === record.ambulance.unitId); if (unit) { unit.status = record.ambulance.status; unit.assignment = record.emergencyDestination ? { destination: record.emergencyDestination.hospitalId } : null; } }
+    renderOperationalMap(mapRoot, { hospitals: defaultMapHospitals(), ambulances, status: selectedRecord ? `Selected ${selectedRecord.caseId} · only persisted assignment fields are shown` : 'Select a case to review persisted assignment context' });
+    find('map-case').textContent = selectedRecord?.caseId || 'Select an emergency case';
+    find('map-ambulance').textContent = selectedRecord?.ambulance ? `${selectedRecord.ambulance.unitId} · ${ambulanceStatusLabels[selectedRecord.ambulance.status]}` : 'Not assigned';
+    find('map-pickup').textContent = selectedRecord?.emergencyDestination?.pickup?.label || 'Not available in the case record';
+    find('map-destination').textContent = selectedRecord?.emergencyDestination?.hospitalName || 'Not assigned';
+    find('map-eta').textContent = selectedRecord?.emergencyDestination ? `About ${Math.ceil(selectedRecord.emergencyDestination.durationSeconds / 60)} minutes (bounded simulation)` : 'Not available';
+  }
   async function json(path, options = {}) {
     const response = await apiFetch(path, { cache: 'no-store', ...options });
     if (!response.ok) throw new Error('Unavailable');
@@ -29,23 +49,40 @@ export function mountDispatcher(outlet) {
   }
   function details(record, focus) {
     ambulanceCleanup?.();
+    selectedRecord = record; queueRecords.set(record.caseId, record); drawMap();
     const panel = find('detail'); panel.hidden = false; panel.replaceChildren();
-    const heading = text('h2', `Case ${record.caseId}`); heading.id = 'dispatcher-detail-heading'; heading.tabIndex = -1; panel.append(heading);
-    field(panel, 'Patient preferred name', record.patient.preferredName || record.patient.name);
-    field(panel, 'Status', emergencyStatusLabels[record.emergency.status]);
-    field(panel, 'Emergency reason', record.emergency.reasonSummary); field(panel, 'Triggered', date(record.emergency.triggeredAt));
-    if (record.emergency.status === EmergencyStatus.ACKNOWLEDGED) field(panel, 'Acknowledged by demo dispatcher', date(record.emergency.acknowledgedAt));
+    const heading = text('h2', `Case ${record.caseId}`); heading.id = 'dispatcher-detail-heading'; heading.tabIndex = -1;
+    const top = text('div', '', 'dispatcher-detail-top');
+    top.append(text('span', 'Selected case', 'eyebrow'), heading, text('span', record.ambulance ? ambulanceStatusLabels[record.ambulance.status] : emergencyStatusLabels[record.emergency.status], `dispatcher-state dispatcher-state-${statusClass(record)}`));
+    panel.append(top);
+    const overview = text('div', '', 'dispatcher-detail-summary');
+    field(overview, 'Patient preferred name', record.patient.preferredName || record.patient.name);
+    field(overview, 'Status', emergencyStatusLabels[record.emergency.status]);
+    field(overview, 'Emergency reason', record.emergency.reasonSummary); field(overview, 'Triggered', date(record.emergency.triggeredAt));
+    if (record.emergency.status === EmergencyStatus.ACKNOWLEDGED) field(overview, 'Acknowledged by demo dispatcher', date(record.emergency.acknowledgedAt));
+    panel.append(overview);
+    if (record.emergency.status === EmergencyStatus.PENDING) {
+      const actions = text('div', '', 'dispatcher-detail-actions');
+      const button = text('button', 'Acknowledge emergency case'); button.type = 'button'; button.className = 'dispatcher-primary-action';
+      button.setAttribute('aria-label', `Acknowledge selected emergency case ${record.caseId}`);
+      const message = text('p', 'Acknowledgement is required before selecting a hospital or assigning a fictional ambulance.');
+      message.className = 'dispatcher-detail-action-message'; message.setAttribute('role', 'status'); message.setAttribute('aria-live', 'polite');
+      button.addEventListener('click', () => void acknowledge(record.caseId, button, message)); actions.append(button, message); panel.append(actions);
+    } else if (record.emergency.status === EmergencyStatus.ACKNOWLEDGED) {
+      panel.append(text('p', 'Acknowledgement recorded. Continue with the fictional hospital and ambulance controls below.', 'dispatcher-detail-confirmation'));
+    }
     ambulanceCleanup = mountAmbulanceControls(record, panel, saved => {
       if (disposed || selected !== saved.caseId) return;
       detailController?.abort(); ++detailGeneration; details(saved, false); void read();
     });
-    panel.append(text('h3', 'Validated patient-reported facts and vitals'));
-    for (const [label, value] of Object.entries(record.intakeSummary || {})) field(panel, label, value);
-    for (const flag of record.reportedFacts.redFlags) field(panel, `${flag.type} (${flag.status})`, flag.patientReportedText);
-    panel.append(text('h3', 'Previous workflow information'));
-    field(panel, 'Handoff status', record.handoffStatus); field(panel, 'Hospital receipt', record.handoffReceipt?.caseId || 'None recorded');
-    field(panel, 'Previous doctor route', record.routing?.specialty || 'None recorded');
-    panel.append(text('p', 'Emergency workflow remains active. All ambulance actions are fictional simulations; no real response is underway.'));
+    const facts = text('section', '', 'dispatcher-detail-group'); facts.append(text('h3', 'Validated patient-reported facts and vitals'));
+    for (const [label, value] of Object.entries(record.intakeSummary || {})) field(facts, label, value);
+    for (const flag of record.reportedFacts.redFlags) field(facts, `${flag.type} (${flag.status})`, flag.patientReportedText);
+    panel.append(facts);
+    const history = text('section', '', 'dispatcher-detail-group'); history.append(text('h3', 'Previous workflow information'));
+    field(history, 'Handoff status', record.handoffStatus); field(history, 'Hospital receipt', record.handoffReceipt?.caseId || 'None recorded');
+    field(history, 'Previous doctor route', record.routing?.specialty || 'None recorded');
+    panel.append(history, text('p', 'Emergency workflow remains active. All ambulance actions are fictional simulations; no real response is underway.', 'dispatcher-detail-note'));
     if (focus) heading.focus();
   }
   async function detail(id, focus = true) {
@@ -59,45 +96,56 @@ export function mountDispatcher(outlet) {
       details(record, focus);
     } catch { if (!disposed && current === detailGeneration) find('detail').replaceChildren(text('p', 'Emergency case unavailable. Refresh to retry.')); }
   }
-  async function acknowledge(id, button) {
+  async function acknowledge(id, button, localStatus = null) {
     if (acknowledging) return;
-    acknowledging = true; button.disabled = true; actionController = new AbortController(); find('action').textContent = 'Saving acknowledgement…';
+    const report = value => { find('action').textContent = value; if (localStatus) localStatus.textContent = value; };
+    acknowledging = true; button.disabled = true; actionController = new AbortController(); report('Saving acknowledgement…');
     try {
       const record = await json(`/api/dispatcher/cases/${id}/acknowledge`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}', signal: actionController.signal });
       if (disposed) return;
       if (record.caseId !== id || record.emergency?.status !== EmergencyStatus.ACKNOWLEDGED) throw new Error('Unconfirmed');
-      find('action').textContent = 'Dispatcher acknowledged. No emergency response has been dispatched.';
+      report('Dispatcher acknowledged. No emergency response has been dispatched.');
       if (selected === id) { detailController?.abort(); ++detailGeneration; details(record, false); }
       await read();
-    } catch { if (!disposed) { button.disabled = false; find('action').textContent = 'Acknowledgement could not be confirmed. Refresh or retry.'; } }
+    } catch { if (!disposed) { button.disabled = false; report('Acknowledgement could not be confirmed. Refresh or retry.'); } }
     finally { acknowledging = false; }
   }
   function card(record) {
     const article = document.createElement('article'); article.className = 'dispatcher-card'; article.dataset.caseId = record.caseId;
-    article.append(text('span', emergencyStatusLabels[record.emergency.status], 'badge'), text('h2', record.patient.preferredName || record.patient.name || 'Name not reported'));
-    field(article, 'Case', record.caseId); field(article, 'Emergency reason', record.emergency.reasonSummary); field(article, 'Triggered', date(record.emergency.triggeredAt));
+    const top = text('div', '', 'dispatcher-card-top');
+    top.append(text('span', record.ambulance ? ambulanceStatusLabels[record.ambulance.status] : emergencyStatusLabels[record.emergency.status], `dispatcher-state dispatcher-state-${statusClass(record)}`), text('span', date(record.emergency.triggeredAt), 'dispatcher-card-time'));
+    article.append(top, text('h3', record.patient.preferredName || record.patient.name || 'Name not reported'));
+    field(article, 'Case', record.caseId); field(article, 'Emergency reason', record.emergency.reasonSummary);
     if (record.ambulance) field(article, 'Ambulance — simulation', `${record.ambulance.unitId} · ${ambulanceStatusLabels[record.ambulance.status]}`);
-    for (const label of ['Reported Symptoms', 'Blood Pressure', 'Heart Rate', 'SpO2']) field(article, label, record.intakeSummary?.[label]);
-    const open = text('button', 'Open emergency case'); open.type = 'button'; open.setAttribute('aria-label', `Open emergency case ${record.caseId}`); open.addEventListener('click', () => void detail(record.caseId)); article.append(open);
+    const actions = text('div', '', 'dispatcher-card-actions');
+    const open = text('button', 'Open emergency case'); open.type = 'button'; open.setAttribute('aria-label', `Open emergency case ${record.caseId}`); open.addEventListener('click', () => void detail(record.caseId)); actions.append(open);
     if (record.emergency.status === EmergencyStatus.PENDING) {
-      const button = text('button', 'Acknowledge'); button.type = 'button'; button.setAttribute('aria-label', `Acknowledge ${record.caseId}`); button.addEventListener('click', () => void acknowledge(record.caseId, button)); article.append(button);
-    } else field(article, 'Acknowledged', date(record.emergency.acknowledgedAt));
+      const button = text('button', 'Acknowledge'); button.type = 'button'; button.setAttribute('aria-label', `Acknowledge ${record.caseId}`); button.addEventListener('click', () => void acknowledge(record.caseId, button)); actions.append(button);
+    }
+    article.append(actions);
     return article;
+  }
+  function updateSummary() {
+    const records = [...queueRecords.values()];
+    find('total').textContent = String(records.length);
+    find('pending').textContent = String(records.filter(record => record.emergency.status === EmergencyStatus.PENDING).length);
+    find('assigned').textContent = String(records.filter(record => record.ambulance).length);
   }
   async function read(more = false) {
     queueController?.abort(); queueController = new AbortController(); const current = ++queueGeneration;
-    if (!more) { seen.clear(); find('cases').replaceChildren(); nextCursor = null; }
+    if (!more) { seen.clear(); queueRecords.clear(); find('cases').replaceChildren(); nextCursor = null; }
     find('message').textContent = 'Loading emergency cases…'; find('more').hidden = true;
     try {
       const result = await json(`/api/dispatcher/cases${more && nextCursor ? `?after=${encodeURIComponent(nextCursor)}` : ''}`, { signal: queueController.signal });
       if (disposed || current !== queueGeneration) return;
-      for (const record of result.cases) if (!seen.has(record.caseId)) { seen.add(record.caseId); find('cases').append(card(record)); }
+      for (const record of result.cases) if (!seen.has(record.caseId)) { seen.add(record.caseId); queueRecords.set(record.caseId, record); find('cases').append(card(record)); }
+      updateSummary(); drawMap();
       nextCursor = result.nextCursor; find('more').hidden = !nextCursor;
       find('message').textContent = seen.size ? `${seen.size} emergency case${seen.size === 1 ? '' : 's'}${result.storage === 'memory' ? ' · Memory — dev only' : ''}` : 'No emergency cases.';
       if (!more && selected) void detail(selected, false);
     } catch { if (!disposed && current === queueGeneration) { find('message').textContent = 'Emergency queue unavailable. Refresh to retry.'; find('more').hidden = !nextCursor; } }
   }
   const refresh = () => void read(), more = () => void read(true);
-  find('refresh').addEventListener('click', refresh); find('more').addEventListener('click', more); void read();
-  return () => { disposed = true; ambulanceCleanup?.(); queueController?.abort(); detailController?.abort(); actionController?.abort(); find('refresh')?.removeEventListener('click', refresh); find('more')?.removeEventListener('click', more); };
+  find('refresh').addEventListener('click', refresh); find('more').addEventListener('click', more); drawMap(); void read();
+  return () => { disposed = true; ambulanceCleanup?.(); queueController?.abort(); detailController?.abort(); actionController?.abort(); find('refresh')?.removeEventListener('click', refresh); find('more')?.removeEventListener('click', more); outlet.classList.remove('dispatcher-main'); };
 }
