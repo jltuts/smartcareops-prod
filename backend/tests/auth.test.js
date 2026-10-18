@@ -10,6 +10,7 @@ import { createMemoryUserProfileStore } from '../src/user-profiles.js';
 import { newCaseId } from '../src/cases/store.js';
 import { routingIntake } from './routing-fixtures.js';
 import { doctorDisplayNameGuidance } from '../../shared/doctor-display-name.js';
+import { createMemoryDemoAccessStore } from '../src/demo-access.js';
 
 const doctorVerification = (specialty, displayName = 'Verified Doctor') => ({ status: 'verified', specialty, displayName, verifiedAt: '2026-01-01T00:00:00.000Z', verifiedBy: 'test-admin' });
 
@@ -57,6 +58,20 @@ test('verified identity ignores spoofed roles and receives only backend-provisio
   const me = await (await fetch(base + '/api/auth/me', { headers })).json();
   assert.equal(me.user.uid, 'verified-user'); assert.deepEqual(me.user.roles, ['patient']); assert.equal(me.demoAccess, true);
   assert.equal((await fetch(base + '/api/doctor/cases', { headers })).status, 403);
+});
+test('demo identity always uses its fixed server-owned Doctor role and specialties', async t => {
+  const token = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.cGF5bG9hZA.c2lnbmF0dXJl';
+  const access = createMemoryDemoAccessStore();
+  const demoAuthentication = { login: async () => ({ sessionToken: token, expiresAt: '2026-10-18T08:00:00.000Z' }), verify: value => {
+    assert.equal(value, token); return { uid: 'demo-local-doctor1', username: 'doctor1', displayName: 'Marie Carter' };
+  } };
+  const { base } = await setup(t, '', '', { env: { NODE_ENV: 'production', APP_ENV: 'development', DEMO_LOCAL_AUTH_ENABLED: 'true' }, demoAuthentication, demoAccessStore: access });
+  const login = await fetch(base + '/api/auth/demo-login', { method: 'POST', headers: { Origin: 'http://localhost:5173', 'Content-Type': 'application/json', 'Sec-Fetch-Site': 'same-site', 'Sec-Fetch-Mode': 'cors', 'Sec-Fetch-Dest': 'empty' }, body: JSON.stringify({ username: 'doctor1', password: 'irrelevant-to-stub' }) });
+  assert.equal(login.status, 200);
+  const headers = { Authorization: `Bearer ${token}` };
+  const identity = await (await fetch(base + '/api/auth/me', { headers })).json();
+  assert.deepEqual(identity.user.roles, ['doctor']); assert.deepEqual(identity.user.specialties, ['general_medicine', 'neurology']); assert.equal(identity.user.authProvider, 'demo-local');
+  assert.equal(identity.demoAccess, true);
 });
 test('auth/me exposes configured Live languages only to a Patient with Live access', async t => {
   const liveSessionStore = (await import('../src/live-session.js')).createMemoryLiveSessionStore();

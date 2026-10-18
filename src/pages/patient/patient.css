@@ -342,13 +342,20 @@ html[data-page-shell="patient"] main#main:has(> .auth-page) { width: min(1500px,
 .patient-page #patient-case-refresh { min-height: 42px; padding: 9px 15px; border: 1px solid #b7d9eb; border-radius: 10px; background: #eff8fd; color: #125b8c; font: inherit; font-weight: 700; cursor: pointer; }
 .patient-page #patient-case-refresh:hover { background: #e0f1fb; }
 .patient-case-evidence { display: grid; gap: 12px; margin: 20px 0; padding-top: 17px; border-top: 1px solid var(--patient-line); }
-.patient-appointment-panel { display: grid; gap: 10px; min-width: 0; margin: 20px 0; padding: 18px; border: 1px solid var(--patient-line); border-radius: 14px; background: #f8fcff; overflow-wrap: anywhere; }
+.patient-appointment-panel { display: grid; gap: 10px; width: 100%; max-width: 100%; min-width: 0; margin: 20px 0; padding: 18px; border: 1px solid var(--patient-line); border-radius: 14px; background: #f8fcff; overflow: hidden; overflow-wrap: anywhere; }
 .patient-appointment-panel[hidden] { display: none; }
 .patient-appointment-panel h3, .patient-appointment-panel p { margin: 0; }
-.patient-appointment-slots { display: grid; gap: 8px; min-width: 0; }
-.patient-appointment-slots label { display: flex; align-items: center; gap: 10px; min-height: 44px; min-width: 0; padding: 10px; border: 1px solid var(--patient-line); border-radius: 10px; }
-.patient-appointment-actions { display: flex; flex-wrap: wrap; gap: 8px; }
-.patient-appointment-actions button { min-height: 44px; }
+.patient-appointment-panel h3 { color: var(--patient-ink); font-size: 16px; }
+.patient-appointment-panel > p { color: #526f82; line-height: 1.5; }
+.patient-appointment-slots { display: grid; gap: 8px; width: 100%; min-width: 0; }
+.patient-appointment-slots label { display: flex; align-items: center; gap: 10px; width: 100%; max-width: 100%; min-height: 44px; min-width: 0; padding: 10px 12px; border: 1px solid var(--patient-line); border-radius: 10px; background: #fff; color: #315f73; line-height: 1.45; overflow-wrap: anywhere; cursor: pointer; }
+.patient-appointment-slots input[type='radio'] { flex: 0 0 auto; width: 18px; height: 18px; margin: 0; accent-color: #167e89; }
+.patient-appointment-actions { display: flex; flex-wrap: wrap; gap: 10px; margin-top: 4px; }
+.patient-appointment-actions button { min-height: 44px; padding: 10px 16px; border: 1px solid #0e588c; border-radius: 10px; background: linear-gradient(135deg, #0e588c, #167e89); color: #fff; font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; box-shadow: 0 8px 18px rgb(17 91 126 / 18%); }
+.patient-appointment-actions button:hover { filter: brightness(.94); }
+.patient-appointment-actions button:last-child { border-color: #b7d9e5; background: #fff; color: #17657b; box-shadow: none; }
+.patient-appointment-actions button:last-child:hover { background: #eff8fb; filter: none; }
+.patient-appointment-actions button:disabled { cursor: wait; opacity: .65; }
 @media (max-width: 600px) { .patient-appointment-panel { padding: 13px; }.patient-appointment-actions button { flex: 1 1 100%; } }
 .patient-case-evidence[hidden] { display: none; }
 .patient-case-evidence h3 { margin: 0; color: var(--patient-ink); font-size: 17px; }

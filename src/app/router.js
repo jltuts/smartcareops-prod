@@ -46,9 +46,10 @@ export function resolvePortalAccess(path, auth) {
   if (auth.status !== AuthStatus.SIGNED_IN || !auth.user) return PortalAccess.SIGNED_OUT;
   if (auth.authorizationStatus === AuthorizationStatus.CHECKING) return PortalAccess.AUTHORIZATION_LOADING;
   if (auth.authorizationStatus !== AuthorizationStatus.READY || !auth.identity) return PortalAccess.AUTHORIZATION_ERROR;
-  if (path === '/profile') return PortalAccess.AUTHORIZED;
+  if (path === '/profile') return auth.identity.user?.authProvider === 'demo-local' ? PortalAccess.UNAUTHORIZED : PortalAccess.AUTHORIZED;
+  if (path === '/demo-console') return auth.identity.demoAccess ? PortalAccess.AUTHORIZED : PortalAccess.UNAUTHORIZED;
   const userRoles = auth.identity.user?.roles || [];
-  const requiredRole = ['/command-center', '/demo-console'].includes(path) ? ['command-center', 'command_center'] : [path.slice(1)];
+  const requiredRole = path === '/command-center' ? ['command-center', 'command_center'] : [path.slice(1)];
   const authorized = requiredRole.some(role => userRoles.includes(role)) && !(path === '/doctor' && !(auth.identity.user?.specialties || []).length);
   if (!authorized) return PortalAccess.UNAUTHORIZED;
   if (path === '/patient' && !auth.identity.liveAvailable) return PortalAccess.PATIENT_LIMITED;
@@ -175,7 +176,7 @@ export function renderAccessBoundary(outlet, path, auth) {
         : `<section class="role-page auth-page" aria-labelledby="page-heading"><div class="auth-page-skeleton" role="status" aria-label="Checking portal access"><span></span><span></span><span></span></div><h1 id="page-heading" tabindex="-1">${title}</h1><p class="role-subtitle">Checking your portal access…</p></section>`;
   } else if (access === PortalAccess.PATIENT_LIMITED) {
     outlet.innerHTML = `<section class="role-page patient-page patient-hosted" aria-labelledby="page-heading"><a class="back-link" href="/" data-link>← Back to home</a><p class="eyebrow">Patient intake and status</p><h1 id="page-heading" tabindex="-1">Patient Portal</h1><p class="role-subtitle">You are signed in. Your identity has been verified.</p><div class="access-panel"><h2>Secure voice intake is being prepared</h2><p>Hosted voice intake is unavailable until its secure session connection is complete. No internal execution or clinical controls are available here.</p></div></section>`;
-  } else if (path === '/doctor' && access === PortalAccess.UNAUTHORIZED) {
+  } else if (path === '/doctor' && access === PortalAccess.UNAUTHORIZED && auth.identity.user?.authProvider !== 'demo-local') {
     const label = auth.user.displayName || auth.user.email || 'Google account';
     const options = specialtyCodes.map(code => `<option value="${code}">${specialtyLabels[code]}</option>`).join('');
     outlet.innerHTML = `<section class="role-page auth-page doctor-access-shell doctor-access-result" aria-labelledby="page-heading"><p class="eyebrow">Signed in</p><h1 id="page-heading" tabindex="-1">Doctor profile setup</h1><p class="role-subtitle" id="access-identity"></p><div class="access-panel doctor-application-panel"><h2>Request Doctor workspace access</h2><p>Submit your display name and requested specialty. This application does not grant Doctor access or verify professional credentials. An administrator must review and approve it.</p><form id="doctor-application-form" novalidate><label for="doctor-application-name">Display name</label><input id="doctor-application-name" name="displayName" required maxlength="100" autocomplete="name" aria-describedby="doctor-application-name-help"><p class="doctor-application-name-help" id="doctor-application-name-help">${doctorDisplayNameGuidance}</p><label for="doctor-application-specialty">Requested specialty</label><select id="doctor-application-specialty" name="specialty" required>${options}</select><button type="submit">Submit for administrator review</button></form><p id="doctor-application-status" role="status" aria-live="polite">Checking your application…</p></div><a class="back-link auth-back-link" href="/" data-link>← Back to home</a></section>`;
@@ -218,7 +219,7 @@ export function renderAccessBoundary(outlet, path, auth) {
     const disposeNav = mountPublicNav(navHost);
     document.title = `${title} | SmartCareOps`;
     return disposeNav;
-  } else if (path === '/patient' && access === PortalAccess.UNAUTHORIZED) {
+  } else if (path === '/patient' && access === PortalAccess.UNAUTHORIZED && auth.identity.user?.authProvider !== 'demo-local') {
     const label = auth.user.displayName || auth.user.email || 'Google account';
     outlet.innerHTML = `<section class="role-page auth-page patient-access-result" aria-labelledby="page-heading"><p class="eyebrow">Signed in</p><h1 id="page-heading" tabindex="-1">Patient access</h1><p class="role-subtitle" id="access-identity"></p><div class="access-panel patient-application-panel"><h2>Request Patient Portal access</h2><p>Patient access currently requires administrator approval. Submitting a request does not start an intake or use Gemini credits.</p><form id="patient-application-form"><label class="admin-verification"><input type="checkbox" name="confirm" required> I am requesting access to use the Patient Portal.</label><button type="submit">Request access</button></form><p id="patient-application-status" role="status" aria-live="polite">Checking your request…</p></div><a class="back-link auth-back-link" href="/" data-link>← Back to home</a></section>`;
     outlet.querySelector('#access-identity').textContent = `Signed in as ${label}${auth.user.email && auth.user.displayName ? ` · ${auth.user.email}` : ''}`;

@@ -6,6 +6,47 @@ import { AudioStreamer, AudioPlayer } from './google-reference/media.js';
 export function createReferenceConversation(outlet, request, { medicine } = {}) {
   const find = id => outlet.querySelector(`#${id}`);
   let current = null;
+  let emergencyUtterance = null;
+  let emergencySpeechTimer = null;
+  let emergencyReplay = null;
+  const retryEmergencyAudio = find('retry-emergency-audio');
+  function clearEmergencySpeech() {
+    clearTimeout(emergencySpeechTimer);
+    if (emergencyUtterance) emergencyUtterance.onend = emergencyUtterance.onerror = null;
+    emergencyUtterance = null;
+  }
+  function playEmergencySpeech(text, language, onend, onerror) {
+    clearEmergencySpeech();
+    const speech = window.speechSynthesis;
+    const Utterance = window.SpeechSynthesisUtterance;
+    if (!speech || typeof speech.speak !== 'function' || typeof Utterance !== 'function') { onerror(); return; }
+    const utterance = new Utterance(text);
+    emergencyUtterance = utterance;
+    utterance.lang = language;
+    const settle = callback => {
+      if (emergencyUtterance !== utterance) return;
+      clearEmergencySpeech();
+      callback();
+    };
+    utterance.onend = () => settle(onend);
+    utterance.onerror = () => settle(onerror);
+    // Some mobile speech engines can queue speech without firing either event.
+    emergencySpeechTimer = setTimeout(() => settle(onerror), 55000);
+    try { speech.speak(utterance); } catch { settle(onerror); }
+  }
+  function retryEmergencySpeech() {
+    if (!emergencyReplay || current) return false;
+    const { messages, language } = emergencyReplay;
+    retryEmergencyAudio.hidden = true;
+    const settled = failed => {
+      if (failed) { try { window.speechSynthesis?.cancel(); } catch {} }
+      retryEmergencyAudio.textContent = failed ? 'Retry emergency speech' : 'Play emergency message again';
+      retryEmergencyAudio.hidden = false;
+    };
+    // Invoked synchronously by the button tap; does not reopen or resave intake.
+    playEmergencySpeech(messages.join(' '), language, () => settled(false), () => settled(true));
+    return true;
+  }
   const notice = 'Only fictional test data is allowed. No real emergency response is dispatched.';
   const completionSentence = 'Thank you. Your intake is complete.';
   const closingQuestion = 'I got all the information I need for this intake. Is there anything else you want to say?';
@@ -84,6 +125,8 @@ export function createReferenceConversation(outlet, request, { medicine } = {}) 
   function stop(message = '') {
     const session = current;
     current = null;
+    if (emergencyUtterance) { try { window.speechSynthesis?.cancel(); } catch {} }
+    clearEmergencySpeech();
     if (session) {
       clearTimeout(session.closeTimer);
       clearTimeout(session.openingTimer);
@@ -162,31 +205,25 @@ export function createReferenceConversation(outlet, request, { medicine } = {}) 
     if (index >= messages.length) { finishEmergency(session); return; }
     const text = messages[index];
     append('SmartCareOps', text, true);
-    const speech = window.speechSynthesis;
-    const Utterance = window.SpeechSynthesisUtterance;
-    if (!speech || typeof speech.speak !== 'function' || typeof Utterance !== 'function') {
-      for (const remaining of messages.slice(index + 1)) append('SmartCareOps', remaining, true);
-      finishEmergency(session, true);
-      return;
-    }
-    const utterance = new Utterance(text);
-    utterance.lang = session.preferredLanguage === 'fil' ? 'fil-PH' : session.preferredLanguage;
-    utterance.onend = () => speakEmergency(session, append, messages, index + 1);
-    utterance.onerror = () => {
+    const unavailable = () => {
       if (current !== session) return;
       for (const remaining of messages.slice(index + 1)) append('SmartCareOps', remaining, true);
+      emergencyReplay = { messages: [...messages], language: session.preferredLanguage === 'fil' ? 'fil-PH' : session.preferredLanguage };
+      retryEmergencyAudio.textContent = 'Retry emergency speech';
+      retryEmergencyAudio.hidden = false;
       finishEmergency(session, true);
     };
-    try {
-      find('ai-state').textContent = index === 0 ? 'Speaking urgent warning' : 'Speaking hospital information';
-      speech.speak(utterance);
-    } catch {
-      utterance.onerror();
-    }
+    find('ai-state').textContent = index === 0 ? 'Speaking urgent warning' : 'Speaking hospital information';
+    playEmergencySpeech(text, session.preferredLanguage === 'fil' ? 'fil-PH' : session.preferredLanguage,
+      () => speakEmergency(session, append, messages, index + 1), unavailable);
   }
 
   async function start() {
     if (current || !find('intake-fictional').checked) return;
+    if (emergencyUtterance) { try { window.speechSynthesis?.cancel(); } catch {} }
+    clearEmergencySpeech();
+    emergencyReplay = null;
+    retryEmergencyAudio.hidden = true;
     const session = {
       controller: new AbortController(), rows: new Map(), startingAudio: false,
       playbackUntil: 0, completionRequested: false, closingResponseStarted: false, closeTimer: null,
@@ -475,5 +512,5 @@ After complete_intake succeeds, respond with exactly: "${selectedCompletionSente
       client.connect();
     } catch { fail(); }
   }
-  return { start, stop, get active() { return !!current; } };
+  return { start, stop, retryEmergencySpeech, get active() { return !!current; } };
 }

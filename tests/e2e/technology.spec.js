@@ -4,6 +4,9 @@ test('Technology page inventories current Google services and the application st
   await page.goto('/technology');
   await expect(page.locator('.site-header .smartcareops-brand')).toBeVisible();
   await expect(page.locator('.landing-nav-links a[href="/technology"]')).toHaveAttribute('aria-current', 'page');
+  await expect(page.getByRole('heading', { name: 'How the platform fits together', exact: true })).toBeVisible();
+  await expect(page.locator('.technology-architecture img')).toHaveAttribute('src', '/images/technology/smartcareops-architecture-latest.png');
+  await expect(page.getByRole('link', { name: /Open full-size diagram/ })).toHaveAttribute('href', '/images/technology/smartcareops-architecture-latest.png');
   await expect(page.locator('.technology-card')).toHaveCount(17);
   await expect(page.locator('.technology-card img')).toHaveCount(14);
   await expect(page.getByRole('heading', { name: 'Gemini Live API', exact: true })).toBeVisible();
@@ -29,6 +32,9 @@ test('Technology page inventories current Google services and the application st
   await expect(page.locator('.technology-stack')).toContainText('Vite');
   await expect(page.locator('.technology-stack')).toContainText('Terraform');
   await expect(page.locator('.technology-stack')).toContainText('GitHub');
+  await expect(page.locator('.technology-stack table')).toBeVisible();
+  await expect(page.locator('.technology-stack tbody tr')).toHaveCount(6);
+  await expect(page.locator('.technology-stack tbody th')).toHaveText(['Frontend', 'Backend', 'Terraform', 'GitHub', 'Deployment', 'Verification']);
   await expect(page.getByRole('link', { name: /See how SmartCareOps works/ })).toHaveAttribute('href', '/howitworks');
   await expect(page.getByRole('link', { name: /Start Patient Intake/ })).toHaveAttribute('href', '/patient');
   await expect(page.getByRole('link', { name: /Read the User Manual/ })).toHaveAttribute('href', '/manual');

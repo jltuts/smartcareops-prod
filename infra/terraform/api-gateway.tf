@@ -77,7 +77,10 @@ resource "google_api_gateway_api_config" "live" {
   lifecycle {
     create_before_destroy = true
   }
-  depends_on = [google_cloud_run_v2_service_iam_member.gateway_invoker]
+  depends_on = [
+    google_cloud_run_v2_service_iam_member.gateway_invoker,
+    google_api_gateway_api_config.health,
+  ]
 }
 resource "google_api_gateway_gateway" "api" {
   provider   = google-beta

@@ -599,6 +599,7 @@ export function mountPatient(outlet) {
   }
   const endSession = () => { try { sessionStorage.removeItem(activeIntakeKey); } catch {} stop(); };
   const retryEmergency = () => {
+    if (referenceConversation?.retryEmergencySpeech()) return;
     const session = current;
     if (session?.emergency && session.emergencyPhaseMessage && !session.emergencySpeechToken) {
       speakEmergencyMessage(session, session.emergencyPhaseMessage, true);

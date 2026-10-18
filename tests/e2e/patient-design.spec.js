@@ -69,7 +69,7 @@ test('temporary Patient case failure retains the active case for retry', async (
     return route.fulfill({ status: 503, json: { code: 'CASE_STORE_UNAVAILABLE' } });
   });
   await page.goto('/patient');
-  await expect(page.locator('#patient-case-storage')).toHaveText('Unavailable — persistence not confirmed');
+  await expect(page.locator('#patient-case-storage')).toHaveCount(0);
   await expect(page.locator('#patient-case-status')).toHaveText('Awaiting saved case');
   await expect(page.getByRole('heading', { name: 'Your care is in progress.' })).toBeVisible();
   expect(await page.evaluate(() => sessionStorage.getItem('smartcareops-case-id'))).toBe(caseId);

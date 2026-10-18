@@ -1,0 +1,14 @@
+{
+  "hosting": {
+    "site": "gen-lang-client-0710663107",
+    "public": "dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "rewrites": [{ "source": "**", "destination": "/index.html" }],
+    "headers": [{ "source": "**", "headers": [
+      { "key": "X-Content-Type-Options", "value": "nosniff" },
+      { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
+      { "key": "X-Frame-Options", "value": "DENY" },
+      { "key": "Content-Security-Policy", "value": "default-src 'self'; base-uri 'self'; object-src 'none'; frame-ancestors 'none'; form-action 'self'; script-src 'self' https://apis.google.com https://maps.googleapis.com https://maps.gstatic.com; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; img-src 'self' data: blob: https://developers.google.com/static/identity/images/g-logo.png https://maps.googleapis.com https://mapsresources-pa.googleapis.com https://maps.gstatic.com https://lh3.googleusercontent.com; connect-src 'self' https://smartcareops-dev-bm0bhvrl.an.gateway.dev wss://smartcareops-live-2bylk5u5mq-as.a.run.app https://generativelanguage.googleapis.com wss://generativelanguage.googleapis.com https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://maps.googleapis.com https://mapsresources-pa.googleapis.com https://maps.gstatic.com; media-src 'self' https://storage.googleapis.com/gen-lang-client-0710663107-smartcareops-public-media/; font-src 'self' https://fonts.gstatic.com; frame-src 'self' blob: https://gen-lang-client-0710663107.firebaseapp.com https://accounts.google.com https://www.google.com; worker-src 'self' blob:" }
+    ] }]
+  }
+}

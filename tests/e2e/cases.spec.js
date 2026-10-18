@@ -17,7 +17,7 @@ for (const storage of ['firestore', 'memory', 'firestore_emulator']) test(`case 
     await page.getByRole('button', { name: 'Start Conversation' }).click();
   await expect(page.locator('#patient-case-id')).toHaveText(caseId);
   await expect(page.locator('#patient-case-status')).toHaveText('Intake completed');
-  await expect(page.locator('#patient-case-storage')).toHaveText(storage === 'memory' ? 'Memory — dev only; lost on backend restart' : storage === 'firestore_emulator' ? 'Firestore emulator — local test only' : 'Firestore');
+  await expect(page.locator('#patient-case-storage')).toHaveCount(0);
   expect(reads).toBeGreaterThan(0);
   record = { ...record, workflowStatus: 'handoff_completed', handoffStatus: 'completed', handoffReceipt: { caseId: 'DEMO-1234ABCD' } };
   await page.reload();
@@ -31,7 +31,7 @@ test('case read failure is explicit and starting a new intake clears the previou
   await page.route(`**/api/cases/${caseId}`, route => route.fulfill({ status: 503, json: { code: 'CASE_STORE_UNAVAILABLE' } }));
   await page.routeWebSocket('**/api/live', socket => socket.onMessage(() => socket.send(JSON.stringify({ type: 'ready' }))));
   await page.goto('/patient');
-  await expect(page.locator('#patient-case-storage')).toHaveText('Unavailable — persistence not confirmed');
+  await expect(page.locator('#patient-case-storage')).toHaveCount(0);
   await page.locator('[data-intake-mode="voice"]:visible').first().click(); await page.locator('#intake-fictional').check();
     await page.getByRole('button', { name: 'Start Conversation' }).click();
   await expect(page.locator('#patient-case')).toBeHidden();

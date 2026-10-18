@@ -1,5 +1,15 @@
 import { test, expect } from '@playwright/test';
 
+test('Google authorization parses the backend identity and preserves every workspace role', async ({ page }) => {
+  await page.goto('/');
+  const identity = await page.evaluate(async () => {
+    const { readIdentityResponse } = await import('/src/auth/service.js');
+    return readIdentityResponse(new Response(JSON.stringify({ user: { uid: 'google-admin', roles: ['patient', 'doctor', 'dispatcher', 'command_center', 'admin'], specialties: ['general_medicine'] }, demoAccess: true }), { status: 200, headers: { 'Content-Type': 'application/json' } }));
+  });
+  expect(identity.user.roles).toEqual(['patient', 'doctor', 'dispatcher', 'command_center', 'admin']);
+  expect(identity.user.specialties).toEqual(['general_medicine']);
+});
+
 async function mountAuthHarness(page, initial) {
   await page.goto('/');
   await page.evaluate(async state => {
@@ -58,7 +68,42 @@ test('Google sign-in uses the official brand icon and preserves the existing sig
   await expect(icon).toHaveAttribute('referrerpolicy', 'no-referrer');
   await signIn.evaluate(button => button.click());
   await expect.poll(() => page.evaluate(() => window.__googleSignInCalls)).toBe(1);
-  await expect(root.locator('input[type="password"]')).toHaveCount(0);
+  await expect(root.locator('input[type="password"]')).not.toBeVisible();
+});
+
+test('demo sign-in is a separate compact form and submits the entered credentials', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { mountAuthBar } = await import('/src/auth/ui.js');
+    const root = document.createElement('section'); root.id = 'demo-signin-test'; document.body.prepend(root); window.__demoCredentials = null;
+    mountAuthBar(root, { getState: () => ({ status: 'SIGNED_OUT', user: null, error: null }), subscribe: () => () => {}, signIn: () => {}, signInDemo: async (username, password) => { window.__demoCredentials = { username, password }; }, signOut: () => {} });
+  });
+  const root = page.locator('#demo-signin-test'); await root.getByText('Demo sign-in', { exact: true }).click();
+  const username = root.getByLabel('Username'), password = root.getByLabel('Password'), toggle = root.getByRole('button', { name: 'Show password' });
+  await expect(username).toHaveCSS('font-weight', '400'); await expect(password).toHaveAttribute('type', 'password');
+  await expect(toggle.locator('svg')).toBeVisible(); await expect(toggle).toHaveText('');
+  await toggle.click(); await expect(password).toHaveAttribute('type', 'text'); await expect(toggle).toHaveAccessibleName('Hide password'); await expect(toggle).toHaveAttribute('aria-pressed', 'true');
+  await toggle.click(); await expect(password).toHaveAttribute('type', 'password'); await expect(toggle).toHaveAccessibleName('Show password');
+  await username.fill('doctor1'); await password.fill('secret-value'); await root.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect.poll(() => page.evaluate(() => window.__demoCredentials)).toEqual({ username: 'doctor1', password: 'secret-value' });
+});
+
+test('demo dispatcher sign-in opens the Dispatcher workspace from the backend-confirmed role', async ({ page }) => {
+  await page.goto('/');
+  await page.evaluate(async () => {
+    const { mountAuthBar } = await import('/src/auth/ui.js');
+    const root = document.createElement('section'); root.id = 'dispatcher-signin-test'; document.body.prepend(root);
+    mountAuthBar(root, {
+      getState: () => ({ status: 'SIGNED_OUT', user: null, error: null }), subscribe: () => () => {}, signIn: () => {}, signOut: () => {},
+      signInDemo: async () => ({ user: { roles: ['dispatcher'], authProvider: 'demo-local' }, demoAccess: true }),
+    });
+  });
+  const root = page.locator('#dispatcher-signin-test');
+  await root.getByText('Demo sign-in', { exact: true }).click();
+  await root.getByLabel('Username').fill('dispatcher1');
+  await root.getByLabel('Password').fill('secret-value');
+  await root.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await expect(page).toHaveURL(/\/dispatcher$/);
 });
 
 test('signed-out protected-route gate uses the same official Google brand asset', async ({ page }) => {
@@ -314,6 +359,35 @@ test('privileged portal rendering still requires a backend-owned role', async ({
     };
   });
   expect(results).toEqual({ denied: 'UNAUTHORIZED', allowed: 'AUTHORIZED' });
+});
+
+test('demo dispatcher can use only Dispatcher while other portals show authenticated access denial', async ({ page }) => {
+  await page.goto('/');
+  const result = await page.evaluate(async () => {
+    const { renderAccessBoundary, resolvePortalAccess } = await import('/src/app/router.js');
+    const auth = {
+      status: 'SIGNED_IN', user: { uid: 'demo-local-dispatcher1', displayName: 'Elmer Vance' }, authorizationStatus: 'READY',
+      identity: { user: { roles: ['dispatcher'], authProvider: 'demo-local' }, demoAccess: true, liveAvailable: true },
+    };
+    const denied = {};
+    for (const path of ['/patient', '/doctor', '/command-center', '/admin']) {
+      const root = document.createElement('section');
+      renderAccessBoundary(root, path, auth);
+      denied[path] = root.innerText;
+    }
+    return {
+      dispatcher: resolvePortalAccess('/dispatcher', auth),
+      demoConsole: resolvePortalAccess('/demo-console', auth),
+      denied,
+    };
+  });
+  expect(result.dispatcher).toBe('AUTHORIZED');
+  expect(result.demoConsole).toBe('AUTHORIZED');
+  for (const [path, text] of Object.entries(result.denied)) {
+    expect(text, path).toContain("You don't currently have access to the");
+    expect(text, path).not.toContain('Request Doctor workspace access');
+    expect(text, path).not.toContain('Request Patient Portal access');
+  }
 });
 
 test('Doctor access presents a pending specialty application without granting a role', async ({ page }) => {

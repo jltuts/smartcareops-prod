@@ -58,6 +58,16 @@ variable "gemini_secret_version" {
     error_message = "Provide a numeric Secret Manager version or latest alias, never a credential."
   }
 }
+variable "demo_auth_secret_version" {
+  type        = string
+  default     = null
+  nullable    = true
+  description = "Secret Manager version containing the generated demo-account hashes and signing key. Null disables local demo authentication."
+  validation {
+    condition     = var.demo_auth_secret_version == null ? true : can(regex("^(latest|[1-9][0-9]*)$", var.demo_auth_secret_version))
+    error_message = "Use an existing numeric Secret Manager version or latest."
+  }
+}
 variable "allowed_origins" {
   type        = list(string)
   default     = ["https://gen-lang-client-0710663107.web.app", "https://gen-lang-client-0710663107.firebaseapp.com"]
@@ -358,6 +368,20 @@ variable "admin_uids" {
   validation {
     condition     = length(distinct(var.admin_uids)) == length(var.admin_uids) && alltrue([for uid in var.admin_uids : can(regex("^[A-Za-z0-9_-]{1,128}$", uid))])
     error_message = "Configure each Admin once using an exact Firebase Authentication UID."
+  }
+}
+
+variable "purge_protected_google_emails" {
+  type        = list(string)
+  default     = ["johnlouisgarcia@gmail.com", "chebulay.12@gmail.com"]
+  description = "Google Firebase Authentication emails that test-data purge must retain."
+  validation {
+    condition = length(var.purge_protected_google_emails) == 2 && length(distinct([
+      for email in var.purge_protected_google_emails : lower(trimspace(email))
+      ])) == 2 && alltrue([
+      for email in var.purge_protected_google_emails : can(regex("^[^@\\s]+@[^@\\s]+\\.[^@\\s]+$", email))
+    ])
+    error_message = "Configure exactly two distinct protected Google account email addresses."
   }
 }
 variable "enable_api_gateway" {

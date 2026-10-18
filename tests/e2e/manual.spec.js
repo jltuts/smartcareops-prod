@@ -1,6 +1,30 @@
 import { test, expect } from '@playwright/test';
 
 test.describe('SmartCareOps User Manual', () => {
+  test('offers a responsive video pitch without autoplay or eager downloads', async ({ page }) => {
+    await page.goto('/manual#overview');
+    const pitch = page.locator('[data-manual-pitch]');
+    const player = pitch.locator('video');
+    const url = 'https://storage.googleapis.com/gen-lang-client-0710663107-smartcareops-public-media/smartcareops-video.mp4';
+    await expect(player).toBeVisible();
+    await expect(player).toHaveAttribute('controls', '');
+    await expect(player).toHaveAttribute('playsinline', '');
+    await expect(player).toHaveAttribute('preload', 'none');
+    await expect(player).not.toHaveAttribute('autoplay');
+    await expect(player.locator('source')).toHaveAttribute('src', url);
+    await expect(pitch.getByRole('link', { name: 'Open the video pitch' })).toHaveAttribute('href', url);
+    expect(await player.evaluate(el => el.getBoundingClientRect().right <= window.innerWidth)).toBe(true);
+    await pitch.screenshot({ path: `tmp/manual-pitch-${test.info().project.name}.png` });
+  });
+  test('lists every public fictional demo account and its access boundary', async ({ page }) => {
+    await page.goto('/manual#demo');
+    const accounts = page.locator('[data-manual-demo-accounts]'), table = accounts.getByRole('table');
+    await expect(page.locator('#overview').locator('[data-manual-demo-accounts]')).toBeVisible();
+    for (const username of ['patient1', 'patient2', 'patient3', 'doctor1', 'doctor2', 'doctor3', 'dispatcher1', 'dispatcher2', 'commandcenter1', 'commandcenter2', 'admin1']) await expect(table.getByText(username, { exact: true })).toBeVisible();
+    for (const fullName of ['John Doe', 'Ericka Smith', 'Donna Lim', 'Marie Carter', 'Alex Parks', 'Bryan Lee', 'Elmer Vance', 'Clara Ashford', 'Maya Linley', 'Aster Dray', 'Gemini Master']) await expect(table.getByText(fullName, { exact: true })).toBeVisible();
+    await expect(accounts).toContainText('Admin; no purge access');
+    await expect(accounts).toContainText('Only configured Google administrator accounts can purge test data.');
+  });
   test('presents the complete guide and portal links on desktop', async ({ page }) => {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.goto('/manual');
@@ -150,6 +174,19 @@ test.describe('SmartCareOps User Manual', () => {
       expect(bounds.imageWidth).toBeLessThanOrEqual(bounds.figureWidth + 1);
       expect(bounds.overflow).toBe(false);
     }
+  });
+
+  test('documents the one-click Hospital Operations demo and its review actions', async ({ page }) => {
+    await page.goto('/manual#command-center');
+    const guide = page.locator('[data-manual-hospital-demo]');
+    await expect(guide.getByRole('heading', { name: 'One-click hospital pressure demo' })).toBeVisible();
+    await expect(guide).toContainText('Run demo');
+    await expect(guide).toContainText('What the demo did');
+    await expect(guide).toContainText('CONSTRAINED');
+    await expect(guide).toContainText('Capacity response simulation');
+    await expect(guide).toContainText('Staffing response simulation');
+    await expect(page.locator('#command-center')).toContainText('No reset, capacity, or assessment button is needed');
+    await expect(page.locator('#command-center')).not.toContainText('Advance 5 min moves synthetic network time forward');
   });
 
   test('documents role-aware notification behavior and respiratory-cluster boundaries', async ({ page }) => {
@@ -336,10 +373,15 @@ test.describe('SmartCareOps User Manual', () => {
       await page.goto('/manual#admin');
       const admin = page.locator('#admin');
       await expect(admin.getByRole('heading', { name: 'Manage access and fictional test data' })).toBeVisible();
-      await expect(admin).toContainText('Preview data to purge');
-      await expect(admin).toContainText('PURGE ALL TEST DATA');
-      await expect(admin).toContainText('preserves every configured Admin profile');
+      await expect(admin).not.toContainText('Preview data to purge');
+      await expect(admin).not.toContainText('PURGE ALL TEST DATA');
+      await expect(admin).not.toContainText('johnlouisgarcia@gmail.com');
+      await expect(admin).not.toContainText('chebulay.12@gmail.com');
+      await expect(admin).not.toContainText('Google sign-in test accounts');
+      await expect(admin.getByRole('heading', { name: 'Purge test data', exact: true })).toHaveCount(0);
+      await expect(admin).toContainText('Applications and verified specialties');
       await expect(admin).toContainText('Approved patients only');
+      await admin.screenshot({ path: `tmp/manual-admin-${test.info().project.name}-${width}.png` });
       const nav = page.locator(width === 1440 ? '.manual-sidebar' : '.manual-mobile-picker');
       await expect(nav.getByRole('link', { name: 'Admin', exact: true })).toBeVisible();
       await expect(admin.getByRole('link', { name: 'Previous' })).toHaveAttribute('href', '#demo');

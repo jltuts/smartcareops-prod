@@ -40,7 +40,7 @@ const actionLabels = Object.freeze({
   read_doctor_routing: 'Doctor routing checked',
   read_observation_history: 'Observation history checked',
   evaluate_safety: 'Safety information checked',
-  simulate_clinical_review: 'Clinical review simulation',
+  simulate_clinical_review: 'Save fictional review receipt',
   submit_hospital_case: 'Hospital handoff',
 });
 const actionLabel = toolName => actionLabels[toolName] || String(toolName || 'Suggested action').replaceAll('_', ' ');
@@ -80,7 +80,11 @@ export function mountClinical(outlet) {
     if (busy) return; busy = true;
     try {
       const requestedAt = Date.now();
-      await request(path, body); message('Saved. Waiting for durable worker results…', 'waiting');
+      const result = await request(path, body);
+      if (path === '/run' && result?.status === 'up_to_date') {
+        await refresh(); message('AI review is already up to date.', 'success'); return;
+      }
+      message('Saved. Waiting for durable worker results…', 'waiting');
       if (path === '/run') {
         for (let attempt = 0; attempt < 20 && !disposed; attempt++) {
           await new Promise(resolve => setTimeout(resolve, 1000));
@@ -292,17 +296,16 @@ export function mountClinical(outlet) {
         }
       }
       const decision = node('section', ''); decision.className = 'clinical-decision';
-      const completedChecksOnly = plan.recommendedActions.length > 0 && plan.recommendedActions.every(action => !action.approvalRequired && action.status === 'succeeded');
+      const actionsToReview = plan.recommendedActions.filter(action => action.approvalRequired || action.status !== 'succeeded');
       if (plan.labBinding) decision.append(node('p', 'Lab review'), node('h4', 'No actions started'), node('p', 'Review only. No action was taken.'));
-      else if (completedChecksOnly) decision.append(node('p', 'Completed checks'), node('h4', 'Checks completed'), node('p', 'Read-only checks did not change the case.'));
       else decision.append(node('p', 'Suggested action'), node('h4', 'Review this action'), node('p', 'Any action shown here requires its own approval.'));
-      for (const action of plan.recommendedActions) {
+      for (const action of actionsToReview) {
         const row = node('div', ''); row.className = 'clinical-action'; row.dataset.actionId = action.actionId;
         const result = data.executions.find(e => e.actionId === action.actionId);
         const approval = action.approvalId ? data.approvals.find(item => item.approvalId === action.approvalId) : null;
         const completedReadOnly = !action.approvalRequired && action.status === 'succeeded';
         row.append(node('p', `${actionLabel(action.toolName)} · ${action.status === 'succeeded' ? 'Complete' : action.approvalRequired ? 'Approval required' : 'In progress'}`),
-          node('p', completedReadOnly ? `${actionLabel(action.toolName)}. No changes were made.` : action.expectedOutcome));
+          node('p', completedReadOnly ? `${actionLabel(action.toolName)}. No changes were made.` : action.toolName === 'simulate_clinical_review' ? 'Save a fictional receipt documenting this review. No clinical action is performed.' : action.expectedOutcome));
         const actionTechnical = node('details', ''); actionTechnical.className = 'clinical-explanation-technical'; actionTechnical.append(node('summary', 'Technical details'), node('p', `${action.toolName} · ${action.status} · ${action.expectedOutcome}`)); row.append(actionTechnical);
         if (action.approvalRequired) {
           const decisionStatus = approval?.status;
@@ -340,9 +343,7 @@ export function mountClinical(outlet) {
         if (result?.outcome) row.append(node('p', `${result.receiptRef ? 'Verified receipt: ' + result.receiptRef + ' · ' : ''}${result.outcome}`));
         decision.append(row);
       }
-      if (completedChecksOnly) {
-        const completedChecks = node('details', ''); completedChecks.className = 'clinical-completed-checks'; completedChecks.append(node('summary', `Completed checks (${plan.recommendedActions.length})`), decision); section.append(completedChecks);
-      } else section.append(decision);
+      if (plan.labBinding || actionsToReview.length) section.append(decision);
       content.append(section);
     }
     content.append(caseDecision(data));
@@ -352,6 +353,8 @@ export function mountClinical(outlet) {
     activity.append(node('p', 'Case received'));
     if (data.runs.length) activity.append(node('p', 'Gemini analyzed case'));
     if (data.plans.length) activity.append(node('p', 'Risks and missing information identified'), node('p', 'Recommendation prepared'));
+    const currentPlan = data.plans.find(plan => plan.status === 'current');
+    for (const action of currentPlan?.recommendedActions || []) if (!action.approvalRequired && action.status === 'succeeded') activity.append(node('p', actionLabel(action.toolName)));
     if (data.approvals.some(item => item.status === 'pending')) activity.append(node('p', 'Waiting for doctor decision'));
     const reviewDecision = data.patientCase?.clinicalReview;
     if (['approved', 'rejected', 'deferred'].includes(reviewDecision?.status)) activity.append(node('p', `Doctor decision: ${reviewDecision.status}`));

@@ -6,7 +6,7 @@ export const notificationBuckets = ['notifications', 'followups'];
 export function notificationState(state) { state.notifications ||= {}; state.followups ||= {}; }
 function event(state, source, type, id, now, extra = {}) {
   if (state.events[id]) return;
-  check(values(state.events).length < 180, 'NOTIFICATION_EVENT_LIMIT', 409);
+  check((state.meta.eventVersion || 0) - (state.meta.eventBudgetStart || 0) < 180, 'NOTIFICATION_EVENT_LIMIT', 409);
   state.meta.eventVersion = (state.meta.eventVersion || 0) + 1;
   state.events[id] = durableEvent({ eventId: id, type, subjectId: source.subjectId, subjectType: source.scope, version: state.meta.snapshotVersion || state.meta.observationVersion,
     now, scope: { scope: source.scope, agentType: source.agentType, simulation: true }, extra: { eventVersion: state.meta.eventVersion, ...extra } });

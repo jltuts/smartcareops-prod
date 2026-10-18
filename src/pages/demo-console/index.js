@@ -7,7 +7,7 @@ const safe = value => String(value ?? '').replace(/[&<>"']/g, character => ({ '&
 export const renderDemoConsole = () => `<section class="demo-console" aria-labelledby="page-heading">
   <header class="demo-console-heading">
     <div><h1 id="page-heading" tabindex="-1">Demo Console</h1><p>Confirm how a fictional intake crosses the event boundary without opening cloud tools.</p></div>
-    <a href="/command-center" data-link>Open Command Center <span aria-hidden="true">→</span></a>
+    <a href="/" data-link>Home <span aria-hidden="true">→</span></a>
   </header>
   <section class="demo-boundary" aria-labelledby="demo-boundary-heading">
     <div class="demo-boundary-copy"><h2 id="demo-boundary-heading">Routine intake boundary</h2><p>A routine intake may be recorded for audit and projection without becoming a Hospital Operations case.</p></div>
@@ -80,7 +80,7 @@ export function mountDemoConsole(root) {
   const load = async () => {
     refresh.disabled = true; status.textContent = 'Checking the latest routine intake event…'; path.hidden = false; path.setAttribute('aria-busy', 'true'); result.hidden = true;
     try {
-      const response = await apiFetch('/api/operations', { cache: 'no-store', signal: controller.signal });
+      const response = await apiFetch('/api/demo-console', { cache: 'no-store', signal: controller.signal });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message || 'Verification is temporarily unavailable.');
       if (payload.demoBoundary) renderBoundary(payload.demoBoundary); else renderEmpty();
@@ -100,7 +100,7 @@ export function mountDemoConsole(root) {
     const button = form.querySelector('button');
     button.disabled = true; status.textContent = 'Checking the requested case trace…';
     try {
-      const response = await apiFetch('/api/operations/demo-verify', { method: 'POST', cache: 'no-store', signal: controller.signal,
+      const response = await apiFetch('/api/demo-console/verify', { method: 'POST', cache: 'no-store', signal: controller.signal,
         headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ caseId }) });
       const payload = await response.json();
       if (!response.ok) throw new Error(payload.message || 'The case trace could not be verified.');

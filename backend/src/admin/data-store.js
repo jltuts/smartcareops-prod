@@ -3,9 +3,11 @@ import { createHash, randomUUID } from 'node:crypto';
 import { environmentConfig } from '../environment.js';
 import { createConfiguredCloudEvidenceStore } from '../cases/cloud-storage.js';
 import { createConfiguredLabReportObjectStore } from '../lab-reports/storage.js';
+import { createConfiguredFirebaseAuthAccountStore } from './auth-store.js';
 
 // Explicit SmartCareOps-owned Firestore roots. Project configuration, secrets,
-// Firebase Authentication identities, and adminSettings are deliberately excluded.
+// adminSettings are deliberately excluded. Google Firebase Authentication
+// identities are handled separately so protected accounts are never removed.
 export const purgeCollections = Object.freeze([
   'cases', 'caseEvidence', 'ambulances', 'resourceEnvironments', 'intakeFinalizations',
   'liveSessions', 'chatIntakeSessions', 'pendingMedicineEvidence', 'pendingPatientEvidence', 'clinicalWorkspaces',
@@ -26,7 +28,7 @@ async function countTree(ref, state, path, updateTime) {
 const sameCounts = (left, right) => left && right && Object.keys(left).length === Object.keys(right).length &&
   Object.keys(right).every(key => Number.isSafeInteger(left[key]) && left[key] === right[key]);
 const receiptDocumentId = key => `purge-${createHash('sha256').update(key).digest('hex')}`;
-const errorCategory = error => ['EVIDENCE_PURGE_PARTIAL', 'LAB_REPORT_PURGE_PARTIAL', 'PURGE_PREVIEW_LIMIT'].includes(error?.code || error?.message)
+const errorCategory = error => ['EVIDENCE_PURGE_PARTIAL', 'LAB_REPORT_PURGE_PARTIAL', 'AUTH_PURGE_PARTIAL', 'AUTH_PURGE_STALE', 'AUTH_PURGE_LIMIT', 'PURGE_PREVIEW_LIMIT'].includes(error?.code || error?.message)
   ? error.code || error.message : 'DATA_STORE_UNAVAILABLE';
 
 const idleResetState = Object.freeze({ status: 'idle', generation: 0 });
@@ -40,7 +42,7 @@ const resetState = snapshot => {
   });
 };
 
-export function createFirestoreAdminDataStore(db, { now = Date.now, protectedAdminUid = null, protectedAdminUids = [], evidenceStore = null, labReportObjects = null, previewTtlMs = 5 * 60 * 1000 } = {}) {
+export function createFirestoreAdminDataStore(db, { now = Date.now, protectedAdminUid = null, protectedAdminUids = [], evidenceStore = null, labReportObjects = null, authAccountStore = null, previewTtlMs = 5 * 60 * 1000 } = {}) {
   const configuredAdminUids = new Set([
     ...(Array.isArray(protectedAdminUids) ? protectedAdminUids : []),
     ...(protectedAdminUid ? [protectedAdminUid] : []),
@@ -76,7 +78,14 @@ export function createFirestoreAdminDataStore(db, { now = Date.now, protectedAdm
       counts.labReportObjects = reports.count; total += reports.count;
       version.update(`labReportObjects:${reports.version}\n`);
     }
-    return { counts, total, dataVersion: version.digest('hex') };
+    let authVersion = null, preservedAuthAccounts = 0;
+    if (authAccountStore?.previewPurge) {
+      const accounts = await authAccountStore.previewPurge();
+      counts.googleAuthAccounts = accounts.count; total += accounts.count;
+      preservedAuthAccounts = accounts.preservedCount; authVersion = accounts.version;
+      version.update(`googleAuthAccounts:${accounts.version}\n`);
+    }
+    return { counts, total, dataVersion: version.digest('hex'), authVersion, preservedAuthAccounts };
   };
   const writeAudit = async receipt => { await auditRef(receipt.idempotencyKey).set(receipt); return receipt; };
   return {
@@ -116,8 +125,9 @@ export function createFirestoreAdminDataStore(db, { now = Date.now, protectedAdm
       const preservedAdminProfiles = profiles.docs.filter(doc => preservedAdminUidsFor(adminUid).has(doc.id)).length;
       const record = { previewId, adminUid, createdAt, expiresAt, ...observed, preservedAdminProfiles };
       await previewRef(previewId).set(record);
-      return { previewId, createdAt, expiresAt, ...observed, preservedAdminProfile: preservedAdminProfiles > 0,
-        preservedAdminProfiles, preservedSettings: true, preservedAuthAccounts: true };
+      return { previewId, createdAt, expiresAt, counts: observed.counts, total: observed.total, dataVersion: observed.dataVersion,
+        preservedAdminProfile: preservedAdminProfiles > 0, preservedAdminProfiles, preservedSettings: true,
+        preservedAuthAccounts: observed.preservedAuthAccounts };
     },
     async purge({ adminUid, previewId, idempotencyKey }) {
       adminUid = adminUidFor(adminUid);
@@ -148,18 +158,23 @@ export function createFirestoreAdminDataStore(db, { now = Date.now, protectedAdm
           }
           deleted[name] = count;
         }
+        if (authAccountStore?.purgeAll) deleted.googleAuthAccounts = await authAccountStore.purgeAll({ expectedVersion: current.authVersion });
         const receipt = { receiptId, idempotencyKey, previewId, initiatedBy: adminUid, startedAt, completedAt: new Date(now()).toISOString(),
           status: 'completed', categories: Object.keys(preview.counts), previewCounts: preview.counts, deleted,
           total: Object.values(deleted).reduce((sum, value) => sum + value, 0), preservedAdminProfile: true,
-          preservedAdminProfiles: preview.preservedAdminProfiles, preservedSettings: true, preservedAuthAccounts: true };
+          preservedAdminProfiles: preview.preservedAdminProfiles, preservedSettings: true, preservedAuthAccounts: preview.preservedAuthAccounts };
         await writeAudit(receipt); return receipt;
       } catch (error) {
-        if (Number.isSafeInteger(error?.deleted)) deleted[error?.code === 'LAB_REPORT_PURGE_PARTIAL' ? 'labReportObjects' : 'evidenceObjects'] = error.deleted;
+        if (Number.isSafeInteger(error?.deleted)) {
+          const key = error?.code === 'LAB_REPORT_PURGE_PARTIAL' ? 'labReportObjects'
+            : error?.code === 'AUTH_PURGE_PARTIAL' ? 'googleAuthAccounts' : 'evidenceObjects';
+          deleted[key] = error.deleted;
+        }
         const receipt = { receiptId, idempotencyKey, previewId, initiatedBy: adminUid, startedAt, completedAt: new Date(now()).toISOString(),
           status: 'partial_failure', categories: Object.keys(preview.counts), previewCounts: preview.counts, deleted,
           total: Object.values(deleted).reduce((sum, value) => sum + value, 0), errorCategories: [errorCategory(error)],
           preservedAdminProfile: true, preservedAdminProfiles: preview.preservedAdminProfiles,
-          preservedSettings: true, preservedAuthAccounts: true };
+          preservedSettings: true, preservedAuthAccounts: preview.preservedAuthAccounts };
         await writeAudit(receipt);
         const failure = Object.assign(new Error('PURGE_PARTIAL_FAILURE'), { code: 'PURGE_PARTIAL_FAILURE', receipt }); throw failure;
       }
@@ -173,5 +188,6 @@ export function createConfiguredAdminDataStore(env = process.env) {
   if (env.CASE_STORE !== 'firestore' || !config.projectId || env.FIRESTORE_EMULATOR_HOST) throw new Error('Admin purge requires explicit project Firestore');
   const adminUids = [...new Set((env.ADMIN_UIDS || '').split(',').map(value => value.trim()).filter(Boolean))];
   return createFirestoreAdminDataStore(new Firestore({ projectId: config.projectId, databaseId: config.database }),
-    { protectedAdminUids: adminUids, evidenceStore: createConfiguredCloudEvidenceStore(env), labReportObjects: createConfiguredLabReportObjectStore(env) });
+    { protectedAdminUids: adminUids, evidenceStore: createConfiguredCloudEvidenceStore(env), labReportObjects: createConfiguredLabReportObjectStore(env),
+      authAccountStore: createConfiguredFirebaseAuthAccountStore(env) });
 }

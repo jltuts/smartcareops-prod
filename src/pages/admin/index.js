@@ -1,5 +1,5 @@
 import './admin.css';
-import { apiFetch } from '../../auth/service.js';
+import { apiFetch, authEnabled, authState } from '../../auth/service.js';
 import { specialtyLabels } from '../../../shared/routing.js';
 
 export const renderAdmin = () => `<section class="role-page admin-page" aria-labelledby="page-heading">
@@ -9,7 +9,7 @@ export const renderAdmin = () => `<section class="role-page admin-page" aria-lab
   <section class="admin-section" aria-labelledby="approved-doctors-heading"><h2 id="approved-doctors-heading">Approved Doctors</h2><button class="admin-refresh" id="approved-doctors-refresh" type="button">Refresh approved Doctors</button><p class="admin-status" id="approved-doctors-status" role="status" aria-live="polite" tabindex="-1">Loading approved Doctors…</p><div class="admin-application-list" id="approved-doctors-list" aria-busy="true"></div><button class="admin-load-more" id="approved-doctors-more" type="button" hidden>Load more approved Doctors</button></section>
   <section class="admin-section" aria-labelledby="patient-applications-heading"><h2 id="patient-applications-heading">Patient applications</h2><p>Approve only people who should be able to start an intake using the project’s Gemini credits.</p><p class="admin-status" id="patient-status" role="status" aria-live="polite" tabindex="-1">Loading pending applications…</p><div class="admin-application-list" id="patient-application-list" aria-busy="true"></div><button class="admin-load-more" id="patient-load-more" type="button" hidden>Load more Patient applications</button></section>
   <section class="admin-section" aria-labelledby="patient-access-heading"><h2 id="patient-access-heading">Patient Portal access</h2><p>Open access lets any signed-in account use the Patient Portal. Approved-only access requires an Admin approval before an intake can start. Configured administrators retain Patient access for testing.</p><div class="admin-access-controls"><label for="patient-access-mode">Who can use the Patient Portal?</label><select id="patient-access-mode"><option value="open">Anyone signed in</option><option value="approved_only">Approved patients only</option></select><button id="save-patient-access" type="button">Save access setting</button></div><p class="admin-status" id="patient-access-status" role="status" aria-live="polite">Loading access setting…</p></section>
-  <section class="admin-section admin-purge-section" aria-labelledby="purge-heading"><h2 id="purge-heading">Purge test data</h2><p>This removes only the server-listed SmartCareOps case, private evidence object, intake/session, simulated appointment, notification, operational/demo, and non-Admin profile/application data that currently exists. Before deletion, new writers are paused and active intake writers are invalidated. It preserves every configured Admin profile, access-policy definition, audit receipts, Firebase sign-in accounts, infrastructure, secrets, and cloud configuration.</p><button id="preview-purge" type="button">Preview data to purge</button><p class="admin-status" id="purge-status" role="status" aria-live="polite">No data has been deleted.</p><div id="purge-preview" class="purge-preview" hidden></div><label for="purge-confirmation">To enable deletion, type <strong>PURGE ALL TEST DATA</strong></label><input id="purge-confirmation" type="text" autocomplete="off" spellcheck="false" disabled><button id="purge-submit" class="admin-purge-button" type="button" disabled>Purge all test data</button></section>
+  <section class="admin-section admin-purge-section" aria-labelledby="purge-heading"><h2 id="purge-heading">Purge test data</h2><p>This removes SmartCareOps cases, evidence, intake sessions, simulations, non-protected profiles, and Google sign-in test accounts. Before deletion, new writers are paused and active intake writers are invalidated. It always preserves <strong>johnlouisgarcia@gmail.com</strong>, <strong>chebulay.12@gmail.com</strong>, the access policy, audit receipts, infrastructure, secrets, and cloud configuration.</p><button id="preview-purge" type="button">Preview data to purge</button><p class="admin-status" id="purge-status" role="status" aria-live="polite">No data has been deleted.</p><div id="purge-preview" class="purge-preview" hidden></div><label for="purge-confirmation">To enable deletion, type <strong>PURGE ALL TEST DATA</strong></label><input id="purge-confirmation" type="text" autocomplete="off" spellcheck="false" disabled><button id="purge-submit" class="admin-purge-button" type="button" disabled>Purge all test data</button></section>
   <section class="admin-section admin-receipts" aria-labelledby="admin-receipts-heading"><h2 id="admin-receipts-heading">Validated receipts</h2><p>Successful decisions and policy changes remain listed here while this page is open.</p><ul id="admin-receipt-list"><li>No Admin mutations completed in this view.</li></ul></section>
 </section>`;
 
@@ -17,6 +17,9 @@ const dateLabel = value => { const date = new Date(value); return Number.isNaN(d
 const make = (tag, className, text) => { const element = document.createElement(tag); if (className) element.className = className; if (text !== undefined) element.textContent = text; return element; };
 
 export function mountAdmin(root) {
+  const capabilities = authState().identity?.user?.capabilities || [];
+  const purgeSection = root.querySelector('.admin-purge-section');
+  if (authEnabled && !capabilities.includes('purge_test_data')) purgeSection?.remove();
   const refresh = root.querySelector('#admin-refresh');
   const queues = {
     doctor: { list: root.querySelector('#doctor-application-list'), status: root.querySelector('#doctor-status'), more: root.querySelector('#doctor-load-more'), title: 'Doctor', cursor: null },
@@ -173,7 +176,7 @@ export function mountAdmin(root) {
 
   const previewButton = root.querySelector('#preview-purge'), purgeStatus = root.querySelector('#purge-status'), preview = root.querySelector('#purge-preview');
   const confirmation = root.querySelector('#purge-confirmation'), purgeButton = root.querySelector('#purge-submit');
-  const refreshPurgeEnabled = () => { purgeButton.disabled = !purgePreview || confirmation.value !== 'PURGE ALL TEST DATA'; };
+  const refreshPurgeEnabled = () => { if (purgeButton) purgeButton.disabled = !purgePreview || confirmation.value !== 'PURGE ALL TEST DATA'; };
   const loadPurgePreview = async () => {
     previewButton.disabled = true; purgeButton.disabled = true; status(purgeStatus, 'Counting SmartCareOps test records…'); preview.hidden = true;
     try {
@@ -183,25 +186,25 @@ export function mountAdmin(root) {
       purgePreview = result; purgeKey = null; preview.replaceChildren();
       const list = document.createElement('ul');
       for (const [name, count] of Object.entries(result.counts)) list.append(make('li', '', `${name}: ${count}`));
-      preview.append(make('strong', '', `${result.total} records would be removed`), list,
-        make('p', '', 'Every configured Admin profile, Patient access setting, Firebase sign-in accounts, and cloud configuration will be retained.')); preview.hidden = false;
+      preview.append(make('strong', '', `${result.total} records and accounts would be removed`), list,
+        make('p', '', 'Protected: johnlouisgarcia@gmail.com and chebulay.12@gmail.com. The Patient access setting, audit receipts, and cloud configuration will also remain.')); preview.hidden = false;
       confirmation.disabled = false; status(purgeStatus, 'Review the counts, then type the confirmation phrase to enable deletion.');
     } catch (error) { purgePreview = null; confirmation.disabled = true; status(purgeStatus, error.message || 'Purge preview is unavailable.'); }
     finally { previewButton.disabled = false; refreshPurgeEnabled(); }
   };
   const executePurge = async () => {
-    if (!purgePreview || confirmation.value !== 'PURGE ALL TEST DATA' || !window.confirm('Permanently delete the previewed SmartCareOps test data? This cannot be undone.')) return;
+    if (!purgePreview || confirmation.value !== 'PURGE ALL TEST DATA' || !window.confirm('Permanently delete the previewed SmartCareOps test data and unprotected Google sign-in accounts? This cannot be undone.')) return;
     purgeButton.disabled = true; previewButton.disabled = true; status(purgeStatus, 'Deleting the previewed test records…');
     try {
       purgeKey ||= crypto.randomUUID();
       const response = await apiFetch('/api/admin/purge', { method: 'POST', headers: { 'Content-Type': 'application/json', 'Idempotency-Key': purgeKey }, body: JSON.stringify({ confirmation: confirmation.value, previewId: purgePreview.previewId }) }), result = await response.json();
       if (!response.ok) { if (response.status === 409) { purgePreview = null; purgeKey = null; status(purgeStatus, 'Data changed or the preview expired. Create and review a fresh preview before retrying.'); return; } if (result.receipt?.status === 'partial_failure') { addReceipt('Partial purge', result.receipt); purgePreview = null; purgeKey = null; status(purgeStatus, `The purge completed only partially. Receipt ${result.receipt.receiptId}. Create a fresh preview to retry the remaining data.`); return; } throw new Error(result.message || 'Purge did not complete.'); }
       addReceipt('Completed purge', result); purgePreview = null; purgeKey = null; confirmation.value = ''; confirmation.disabled = true; preview.hidden = true;
-      status(purgeStatus, `${result.total} test records deleted. Receipt ${result.receiptId}. Configured Admin profiles, policy, and audit receipt remain.`); refreshAll(); refreshDirectory();
+      status(purgeStatus, `${result.total} test records and accounts deleted. Receipt ${result.receiptId}. The two protected Google accounts, policy, and audit receipt remain.`); refreshAll(); refreshDirectory();
     } catch (error) { status(purgeStatus, error.message || 'Purge did not complete. Refresh the preview before retrying.'); }
     finally { previewButton.disabled = false; refreshPurgeEnabled(); }
   };
-  confirmation.addEventListener('input', refreshPurgeEnabled); previewButton.addEventListener('click', loadPurgePreview); purgeButton.addEventListener('click', executePurge);
+  confirmation?.addEventListener('input', refreshPurgeEnabled); previewButton?.addEventListener('click', loadPurgePreview); purgeButton?.addEventListener('click', executePurge);
   refreshAll(); void loadApprovedDoctors();
-  return () => { refresh.removeEventListener('click', refreshAll); directory.refresh.removeEventListener('click', refreshDirectory); directory.more.removeEventListener('click', moreDirectory); saveAccess.removeEventListener('click', persistAccess); previewButton.removeEventListener('click', loadPurgePreview); purgeButton.removeEventListener('click', executePurge); confirmation.removeEventListener('input', refreshPurgeEnabled); };
+  return () => { refresh.removeEventListener('click', refreshAll); directory.refresh.removeEventListener('click', refreshDirectory); directory.more.removeEventListener('click', moreDirectory); saveAccess.removeEventListener('click', persistAccess); previewButton?.removeEventListener('click', loadPurgePreview); purgeButton?.removeEventListener('click', executePurge); confirmation?.removeEventListener('input', refreshPurgeEnabled); };
 }

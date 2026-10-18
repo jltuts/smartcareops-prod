@@ -93,7 +93,16 @@ export function createClinicalService({ store, caseStore, caseId, model = create
   async function requestRun(requestId) {
     requireThat(token(requestId)); await enroll();
     const patient = await caseStore.getCase(caseId);
-    return write(state => { requireThat(state.meta.observationVersion > 0 || ['submitted_for_clinical_review', 'routed_to_doctor'].includes(patient?.workflowStatus), 'OBSERVATIONS_REQUIRED', 409); return event(state, 'agent.run.requested', `request_${requestId}`); });
+    return write(state => {
+      requireThat(state.meta.observationVersion > 0 || ['submitted_for_clinical_review', 'routed_to_doctor'].includes(patient?.workflowStatus), 'OBSERVATIONS_REQUIRED', 409);
+      const current = state.plans[state.meta.currentRevisionId];
+      const sameEvidence = state.meta.ready && current && current.inputVersion === state.meta.observationVersion &&
+        (current.resourceEvidenceVersion || 0) === (state.resourceEnvironment?.version || 0) &&
+        (current.fleetEvidenceVersion || null) === (state.fleetEvidenceVersion || null);
+      const pendingLabAssessment = values(state.events).some(item => item.type === 'lab.assessment.requested' && item.status === 'pending');
+      if (sameEvidence && !pendingLabAssessment) return { status: 'up_to_date', revisionId: current.revisionId };
+      return event(state, 'agent.run.requested', `request_${requestId}`);
+    });
   }
   async function requestLabRun({ requestId, reportId, expectedRevision }) {
     requireThat(token(requestId) && typeof reportId === 'string' && Number.isInteger(expectedRevision) && expectedRevision > 0);

@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { operationsFixture, operationsAssessment } from './operations-fixtures.js';
 import { createOperationsService } from '../src/operations/service.js';
 import { createOperationsModel } from '../src/operations/model.js';
-import { validateAssessment, validateOperationalAssessment } from '../src/operations/contracts.js';
+import { assessmentSchema, validateAssessment, validateOperationalAssessment } from '../src/operations/contracts.js';
 import { configuredOperationsStore } from '../src/operations/storage.js';
 import { createMemoryCaseStore } from '../src/cases/store.js';
 const capacity = requestId => ({ requestId, hospitalId: 'HOSP-001', monitoredBedsAvailable: 0, expectedVersion: 2 });
@@ -97,6 +97,37 @@ test('Gemini boundary disables storage and retries and validates output', async 
   const model = createOperationsModel({ request: async (input, options) => { calls++; assert.equal(input.store, false); assert.equal(options.maxRetries, 0); assert.equal(input.generation_config.thinking_summaries, 'none'); return { status: 'completed', output_text: JSON.stringify(operationsAssessment(context)) }; } });
   assert.equal((await model(context)).status, 'WATCH'); assert.equal(calls, 1);
 });
+test('Gemini boundary makes one fresh recovery attempt after an invalid assessment', async () => {
+  const context = { snapshot: { snapshotId: 's', capacity: { monitoredBedsAvailable: 1 } }, evidenceRefs: ['s', 'r'] }; const requests = [];
+  const model = createOperationsModel({ request: async input => {
+    requests.push(input); return requests.length === 1
+      ? { status: 'completed', output_text: '{"status":"WATCH"}' }
+      : { status: 'completed', output_text: JSON.stringify(operationsAssessment(context)) };
+  } });
+  assert.equal((await model(context)).status, 'WATCH'); assert.equal(requests.length, 2);
+  assert.doesNotMatch(requests[0].system_instruction, /bounded recovery attempt/);
+  assert.match(requests[0].system_instruction, /no more than four recommendedActions/);
+  assert.match(requests[0].system_instruction, /use each toolName at most once/);
+  assert.match(requests[1].system_instruction, /bounded recovery attempt/);
+  assert.match(requests[1].system_instruction, /SCHEMA_VALIDATION_FAILED/);
+  assert.deepEqual(JSON.parse(requests[1].input), context);
+  assert.deepEqual(requests[1].response_format.schema, requests[0].response_format.schema);
+  assert.deepEqual(requests[1].response_format.schema, assessmentSchema);
+});
+test('Gemini request names the exact trusted alternative evidence required by validation', async () => {
+  const context = { snapshot: { snapshotId: 's', capacity: { monitoredBedsAvailable: 0 } }, evidenceRefs: ['s', 'hosp3'],
+    resourceInvestigation: [{ toolName: 'get_hospital_capacity', evidenceId: 'hosp3', result: { hospitalId: 'HOSP-003', monitoredBedsAvailable: 2 } }] };
+  let requestInput;
+  const model = createOperationsModel({ request: async input => { requestInput = input; return { status: 'completed', output_text: JSON.stringify(operationsAssessment(context)) }; } });
+  await model(context);
+  assert.match(requestInput.system_instruction, /exact evidence reference hosp3/);
+});
+test('Gemini boundary stops after one invalid-response recovery and preserves safe failure details', async () => {
+  let calls = 0; const request = async () => { calls++; return { status: 'completed', output_text: '{"secret":"do-not-expose"}' }; };
+  await assert.rejects(createOperationsModel({ request })({ snapshot: { capacity: { monitoredBedsAvailable: 1 } }, evidenceRefs: [] }), error =>
+    error.code === 'OPERATIONS_MODEL_UNAVAILABLE' && error.safeModelError?.code === 'INVALID_RESPONSE' && error.safeModelError?.validationReason === 'SCHEMA_VALIDATION_FAILED' && !JSON.stringify(error).includes('do-not-expose'));
+  assert.equal(calls, 2);
+});
 test('Gemini truncated output and provider failure are classified safely', async () => {
   for (const request of [async () => ({ status: 'incomplete', output_text: '{}' }), async () => { throw Object.assign(new Error('raw secret'), { status: 429 }); }]) {
     await assert.rejects(createOperationsModel({ request })({ evidenceRefs: [] }), error => error.code === 'OPERATIONS_MODEL_UNAVAILABLE' && !JSON.stringify(error).includes('raw secret'));
@@ -130,6 +161,75 @@ test('explicit demo reset restores baseline and a fresh bounded budget without d
   await f.service.changeCapacity({ requestId: 'zero-after-reset', hospitalId: 'HOSP-001', monitoredBedsAvailable: 0, expectedVersion: Number(reset.currentSnapshot.resourceVersion.split(':')[1]) });
   await f.service.tick(); const after = await f.service.view();
   assert.equal(after.plans.length, before.plans.length + 1); assert.equal(after.currentSnapshot.capacity.monitoredBedsAvailable, 0);
+});
+test('explicit demo reset starts a fresh event allowance while preserving full history', async () => {
+  const f = await operationsFixture({ automaticMonitoringEnabled: false });
+  await f.service.tick();
+  await f.store.transaction('OPS-HOSP-001', state => {
+    while (Object.keys(state.events).length < 180) {
+      state.meta.eventVersion = (state.meta.eventVersion || 0) + 1;
+      const eventId = `legacy_${state.meta.eventVersion}`;
+      state.events[eventId] = { eventId, type: 'legacy.demo.event', status: 'recorded', eventVersion: state.meta.eventVersion,
+        occurredAt: new Date(0).toISOString(), subjectId: 'OPS-HOSP-001', subjectType: 'hospital', simulation: true };
+    }
+    state.meta.lastError = { code: 'OPERATIONS_EVENT_LIMIT' };
+  });
+  const before = await f.store.read('OPS-HOSP-001');
+  await f.service.resetDemo({ requestId: 'event-limit-reset' });
+  const reset = await f.service.view();
+  assert.ok(reset.events.length > 180); assert.ok(reset.events.some(item => item.type === 'legacy.demo.event'));
+  assert.equal(reset.meta.lastError, null); assert.equal(reset.meta.eventBudgetStart, before.meta.eventVersion);
+  const expectedVersion = Number(reset.currentSnapshot.resourceVersion.split(':')[1]);
+  await f.service.changeCapacity({ requestId: 'after-event-limit-reset', hospitalId: 'HOSP-001', monitoredBedsAvailable: 0, expectedVersion });
+  await f.service.tick(); const after = await f.service.view();
+  assert.equal(after.meta.ready, true); assert.equal(after.currentSnapshot.capacity.monitoredBedsAvailable, 0);
+});
+test('legacy and reset demo state receive a fresh bounded snapshot allowance', async () => {
+  const f = await operationsFixture({ automaticMonitoringEnabled: false }); await f.service.tick();
+  await f.store.transaction('OPS-HOSP-001', state => {
+    state.meta.snapshotVersion = 20;
+    delete state.meta.snapshotBudgetStart;
+  });
+  const migrated = await f.service.view();
+  assert.equal(migrated.meta.snapshotBudgetStart, 20); assert.equal(migrated.currentSnapshot.snapshotVersion, 21);
+  await f.service.changeCapacity({ requestId: 'snapshot-budget-zero', hospitalId: 'HOSP-001', monitoredBedsAvailable: 0, expectedVersion: 2 });
+  await f.service.tick();
+  await f.store.transaction('OPS-HOSP-001', state => { state.meta.snapshotBudgetStart = state.meta.snapshotVersion - 20; });
+  const beforeReset = await f.store.read('OPS-HOSP-001');
+  await f.service.resetDemo({ requestId: 'snapshot-limit-reset' });
+  const reset = await f.service.view();
+  assert.equal(reset.meta.snapshotBudgetStart, beforeReset.meta.snapshotVersion);
+  assert.equal(reset.currentSnapshot.snapshotVersion, beforeReset.meta.snapshotVersion + 1);
+  assert.equal(reset.currentSnapshot.capacity.monitoredBedsAvailable, 2);
+  assert.ok(reset.snapshots.some(item => item.snapshotVersion === 1));
+});
+test('snapshot allowance rolls over automatically without clearing history', async () => {
+  const f = await operationsFixture({ automaticMonitoringEnabled: false }); await f.service.tick();
+  await f.store.transaction('OPS-HOSP-001', state => {
+    state.meta.snapshotVersion = 20;
+    state.meta.snapshotBudgetStart = 0;
+  });
+  const refreshed = await f.service.view();
+  assert.equal(refreshed.meta.snapshotBudgetStart, 20);
+  assert.equal(refreshed.currentSnapshot.snapshotVersion, 21);
+  assert.ok(refreshed.snapshots.some(item => item.snapshotVersion === 1));
+});
+test('hosted demo can disable automatic monitoring without blocking explicit reassessment', async () => {
+  let clock = Date.now();
+  const f = await operationsFixture({ now: () => clock, automaticMonitoringEnabled: false });
+  await f.service.tick(); const first = await f.service.view();
+  clock += 600000; await f.service.tick(); const idle = await f.service.view();
+  assert.equal(idle.runs.length, first.runs.length); assert.equal(idle.plans.length, first.plans.length);
+  assert.equal(idle.meta.ready, true); assert.equal(idle.meta.currentRevisionId, first.meta.currentRevisionId);
+  await f.service.requestRun('explicit-after-idle'); await f.service.tick(); const refreshed = await f.service.view();
+  assert.equal(refreshed.runs.length, first.runs.length + 1); assert.equal(refreshed.plans.length, first.plans.length + 1);
+  assert.equal(refreshed.meta.ready, true);
+});
+test('automatic monitoring remains available when explicitly enabled', async () => {
+  let clock = Date.now(); const f = await operationsFixture({ now: () => clock, automaticMonitoringEnabled: true });
+  await f.service.tick(); const first = await f.service.view();
+  clock += 300001; await f.service.tick(); const monitored = await f.service.view();
+  assert.equal(monitored.runs.length, first.runs.length + 1); assert.equal(monitored.plans.length, first.plans.length + 1);
 });
 test('zero beds requires an explicitly cited supported alternative, not retrieval alone', () => {
   const context = { snapshot: { snapshotId: 's', capacity: { monitoredBedsAvailable: 0 } }, evidenceRefs: ['s', 'r'],

@@ -273,21 +273,28 @@ for (const emergencyCase of [
     warning: 'Maaaring kailanganin ng agarang atensyon ang impormasyong ito. Itinitigil ko ang karaniwang intake. Nakabinbin ang emergency escalation. Walang dispatcher o serbisyong pang-emergency na nakontak.',
     facility: 'Hindi available ang kasalukuyang impormasyon ng demo hospital.',
   },
-]) {
-test(`reference voice stops routine intake, speaks the bounded ${emergencyCase.language} emergency messages, and saves once`, async ({ page }) => {
-  await page.addInitScript(() => {
+].flatMap(item => ['success', 'stall-warning', 'stall-facility', 'error-warning'].map(speechMode => ({ ...item, speechMode })))) {
+test(`reference voice ${emergencyCase.speechMode}: bounded ${emergencyCase.language} emergency playback and single save`, async ({ page }) => {
+  await page.addInitScript(speechMode => {
     window.referenceStreams = [];
     window.emergencySpeech = [];
+    window.emergencySpeechMode = speechMode;
     const get = navigator.mediaDevices.getUserMedia.bind(navigator.mediaDevices);
     navigator.mediaDevices.getUserMedia = async options => {
       const stream = await get(options); window.referenceStreams.push(stream); return stream;
     };
     window.SpeechSynthesisUtterance = class { constructor(text) { this.text = text; this.lang = ''; } };
     Object.defineProperty(window, 'speechSynthesis', { configurable: true, value: {
-      speak(utterance) { window.emergencySpeech.push({ text: utterance.text, language: utterance.lang }); queueMicrotask(() => utterance.onend?.()); },
+      speak(utterance) {
+        window.emergencySpeech.push({ text: utterance.text, language: utterance.lang });
+        const mode = window.emergencySpeechMode;
+        const count = window.emergencySpeech.length;
+        if (mode === 'stall-warning' && count === 1 || mode === 'stall-facility' && count === 2) { window.lateEmergencyEnd = utterance.onend; return; }
+        queueMicrotask(() => mode === 'error-warning' ? utterance.onerror?.() : utterance.onend?.());
+      },
       cancel() {},
     } });
-  });
+  }, emergencyCase.speechMode);
   await page.route('**/api/live/session', route => route.fulfill({ json: {
     geminiToken: 'auth_tokens/reference-emergency-test', model: 'gemini-3.8-live', preferredLanguage: emergencyCase.language, intakeSessionId: 'b'.repeat(64),
   } }));
@@ -315,6 +322,7 @@ test(`reference voice stops routine intake, speaks the bounded ${emergencyCase.l
   await expect.poll(() => audioFrames).toBeGreaterThan(3);
   socket.send(JSON.stringify({ serverContent: { outputTranscription: { text: emergencyCase.concern, finished: true }, turnComplete: true } }));
   socket.send(JSON.stringify({ serverContent: { inputTranscription: { text: "I need an emergency. I can't breathe.", finished: true } } }));
+  if (emergencyCase.speechMode.startsWith('stall')) await page.clock.install();
   socket.send(JSON.stringify({ toolCall: { functionCalls: [
     { id: 'complete-must-lose', name: 'complete_intake', args: {} },
     { id: 'emergency-1', name: 'trigger_emergency', args: { reason: 'current_chest_pain' } },
@@ -328,17 +336,30 @@ test(`reference voice stops routine intake, speaks the bounded ${emergencyCase.l
   } }));
   await expect(page.locator('#connection-status')).toHaveText('Emergency escalation');
   await expect(page.locator('#transcript')).toContainText(emergencyCase.warning);
+  if (emergencyCase.speechMode.startsWith('stall')) {
+    await expect(page.locator('#ai-state')).toHaveText(emergencyCase.speechMode === 'stall-warning' ? 'Speaking urgent warning' : 'Speaking hospital information');
+    expect(savedIntakes).toHaveLength(0);
+    await page.clock.runFor(55001);
+  }
   await expect(page.locator('#transcript')).toContainText(emergencyCase.facility);
-  await expect.poll(() => page.evaluate(() => window.emergencySpeech)).toEqual([
+  if (emergencyCase.speechMode === 'success') await expect.poll(() => page.evaluate(() => window.emergencySpeech)).toEqual([
     { text: emergencyCase.warning, language: emergencyCase.speechLanguage },
     { text: emergencyCase.facility, language: emergencyCase.speechLanguage },
   ]);
-  await expect(page.locator('#ai-state')).toHaveText('Emergency information complete');
+  await expect(page.locator('#ai-state')).toHaveText(emergencyCase.speechMode === 'success' ? 'Emergency information complete' : 'Speech unavailable');
   await expect(page.locator('#session-help')).toContainText('No dispatcher or emergency service has been contacted');
   await expect.poll(() => page.evaluate(() => window.referenceStreams.every(s => s.getTracks().every(t => t.readyState === 'ended')))).toBe(true);
   await expect.poll(() => savedIntakes.length).toBe(1);
   expect(savedIntakes[0]).toMatchObject({ intakeSessionId: 'b'.repeat(64), outcome: 'emergency' });
   expect(clinicalRequests).toEqual([expect.stringContaining('/api/intake/voice/complete')]);
+  if (emergencyCase.speechMode !== 'success') {
+    await page.evaluate(() => { window.lateEmergencyEnd?.(); window.emergencySpeechMode = 'success'; });
+    await page.getByRole('button', { name: 'Retry emergency speech', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Play emergency message again' })).toBeVisible();
+    expect(await page.evaluate(() => window.emergencySpeech.at(-1))).toEqual({ text: `${emergencyCase.warning} ${emergencyCase.facility}`, language: emergencyCase.speechLanguage });
+    expect(savedIntakes).toHaveLength(1);
+    await expect(page.locator('#end-conversation')).toBeDisabled();
+  }
   await expect(page.locator('#transcript')).not.toContainText('Thank you. Your intake is complete.');
   await expect(page.locator('#transcript')).not.toContainText('<no speech>{pause}');
 });

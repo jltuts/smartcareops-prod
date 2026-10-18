@@ -32,13 +32,54 @@ paths:
       operationId: authenticatedIdentity
       responses:
         "200":
-          description: Backend-verified Firebase identity and server-owned DEV access
+          description: Backend-verified Google or demo identity and server-owned DEV access
         "401":
-          description: Missing or invalid Firebase ID token
+          description: Missing or invalid authentication token
         "403":
           description: Origin not allowed
     options:
       operationId: identityCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/auth/demo-login:
+    post:
+      operationId: createDemoSession
+      responses:
+        "200":
+          description: Short-lived session for an enabled fictional demo account
+        "401":
+          description: Invalid demo credentials
+        "429":
+          description: Too many demo sign-in attempts
+    options:
+      operationId: demoSessionCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/demo-console:
+    get:
+      operationId: readSanitizedDemoConsole
+      responses:
+        "200":
+          description: Sanitized fictional event boundary and agent session status
+        "401":
+          description: Missing or invalid session
+    options:
+      operationId: demoConsoleCorsPreflight
+      responses:
+        "204":
+          description: Exact allowed-origin CORS response from backend
+  /api/demo-console/verify:
+    post:
+      operationId: verifySanitizedDemoTrace
+      responses:
+        "200":
+          description: Sanitized trace for one fictional case reference
+        "403":
+          description: Origin not allowed
+    options:
+      operationId: demoConsoleVerifyCorsPreflight
       responses:
         "204":
           description: Exact allowed-origin CORS response from backend

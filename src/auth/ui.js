@@ -24,6 +24,14 @@ function accountIdentity(user) {
     email.textContent = user.email;
     copy.append(email);
   }
+  const roles = Array.isArray(user.roles) ? user.roles : [];
+  if (roles.length) {
+    const access = document.createElement('span');
+    const roleLabels = roles.map(role => ({ patient: 'Patient', doctor: 'Doctor', dispatcher: 'Dispatcher', 'command-center': 'Command Center', command_center: 'Command Center', admin: 'Admin' })[role] || role);
+    const specialtyLabels = { general_medicine: 'Family Medicine', orthopedics: 'Orthopedics', cardiology: 'Cardiology', neurology: 'Neurology', pulmonology: 'Pulmonology', endocrinology: 'Endocrinology' };
+    const specialties = (Array.isArray(user.specialties) ? user.specialties : [user.specialty]).filter(Boolean).map(specialty => specialtyLabels[specialty] || specialty);
+    access.textContent = [...roleLabels, ...specialties].filter(Boolean).join(' · '); copy.append(access);
+  }
   identity.append(copy);
   return identity;
 }
@@ -37,6 +45,7 @@ function workspaceLinks(identity) {
   if (roles.includes('dispatcher')) links.push(['/dispatcher', 'Dispatcher']);
   if (roles.includes('command-center') || roles.includes('command_center')) links.push(['/command-center', 'Command Center']);
   if (roles.includes('admin')) links.push(['/admin', 'Admin portal']);
+  if (identity?.demoAccess) links.push(['/demo-console', 'Demo Console']);
   return links;
 }
 
@@ -51,7 +60,17 @@ function googleIcon() {
   return icon;
 }
 
-export function mountAuthBar(element, { subscribe, getState, signIn, signOut }) {
+export function demoWorkspacePath(identity) {
+  const roles = Array.isArray(identity?.user?.roles) ? identity.user.roles : [];
+  if (roles.includes('patient')) return '/patient';
+  if (roles.includes('doctor') && (identity.user.specialties || []).length) return '/doctor';
+  if (roles.includes('dispatcher')) return '/dispatcher';
+  if (roles.includes('command-center') || roles.includes('command_center')) return '/command-center';
+  if (roles.includes('admin')) return '/admin';
+  return '/';
+}
+
+export function mountAuthBar(element, { subscribe, getState, signIn, signInDemo, signOut }) {
   const render = () => {
     const { status, user, error, authorizationStatus, identity } = getState();
     const pathname = window.location.pathname;
@@ -67,7 +86,7 @@ export function mountAuthBar(element, { subscribe, getState, signIn, signOut }) 
     }
     if (status === AuthStatus.SIGNED_IN && user) {
       const ready = authorizationStatus === 'READY' && !!identity?.user;
-      const account = ready ? { displayName: identity.user.displayName || user.displayName, email: identity.user.email || user.email } : { displayName: null, email: null };
+      const account = ready ? { ...identity.user, displayName: identity.user.displayName || user.displayName, email: identity.user.email || user.email } : { displayName: null, email: null };
       const menu = document.createElement('details');
       menu.className = 'command-center-account-menu portal-account-menu';
       const summary = document.createElement('summary');
@@ -86,7 +105,7 @@ export function mountAuthBar(element, { subscribe, getState, signIn, signOut }) 
         unavailable.textContent = 'Account access could not be checked. Workspace links are unavailable.';
         panel.append(unavailable);
       }
-      panel.append(accountLink('/profile', 'Profile', pathname));
+      if (identity?.user?.authProvider !== 'demo-local') panel.append(accountLink('/profile', 'Profile', pathname));
       if (ready) {
         const links = workspaceLinks(identity);
         if (links.length) {
@@ -100,17 +119,6 @@ export function mountAuthBar(element, { subscribe, getState, signIn, signOut }) 
           for (const [href, text] of links) navigation.append(accountLink(href, text, pathname));
           panel.append(navigation);
         }
-        if (['/command-center', '/demo-console'].includes(pathname) && links.some(([href]) => href === '/command-center')) {
-          const demo = document.createElement('details');
-          demo.className = 'account-demo-controls';
-          const demoSummary = document.createElement('summary');
-          demoSummary.textContent = 'Demo controls';
-          const copy = document.createElement('p');
-          copy.textContent = 'Verify the fictional event boundary without command-line tools.';
-          const link = accountLink('/demo-console', 'Open Demo Console', pathname);
-          demo.append(demoSummary, copy, link);
-          panel.append(demo);
-        }
       }
       const button = document.createElement('button');
       button.type = 'button';
@@ -121,12 +129,15 @@ export function mountAuthBar(element, { subscribe, getState, signIn, signOut }) 
       menu.append(summary, panel);
       element.append(menu);
     } else {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'google-button';
-      button.append(googleIcon(), document.createTextNode('Continue with Google'));
-      button.addEventListener('click', () => signIn());
-      element.append(button);
+      const choices = document.createElement('div'); choices.className = 'auth-choices';
+      const button = document.createElement('button'); button.type = 'button'; button.className = 'google-button'; button.append(googleIcon(), document.createTextNode('Continue with Google')); button.addEventListener('click', () => signIn());
+      const demo = document.createElement('details'); demo.className = 'demo-signin';
+      const summary = document.createElement('summary'); summary.textContent = 'Demo sign-in';
+      const form = document.createElement('form'); form.className = 'demo-signin-form'; form.innerHTML = '<div class="demo-signin-field"><label for="demo-signin-username">Username</label><input id="demo-signin-username" name="username" autocomplete="username" maxlength="32" required></div><div class="demo-signin-field"><div class="demo-password-label"><label for="demo-signin-password">Password</label><button class="demo-password-toggle" type="button" aria-label="Show password" title="Show password" aria-pressed="false"><svg viewBox="0 0 24 24" aria-hidden="true" focusable="false"><path d="M2.5 12s3.5-5.5 9.5-5.5 9.5 5.5 9.5 5.5-3.5 5.5-9.5 5.5S2.5 12 2.5 12Z"/><circle cx="12" cy="12" r="2.5"/><path class="demo-password-slash" d="m4 4 16 16" hidden/></svg></button></div><input id="demo-signin-password" name="password" type="password" autocomplete="current-password" maxlength="256" required></div><p role="status" aria-live="polite"></p><button class="demo-signin-submit" type="submit">Sign in</button>';
+      const password = form.elements.password, passwordToggle = form.querySelector('.demo-password-toggle');
+      passwordToggle.addEventListener('click', () => { const visible = password.type === 'text', label = visible ? 'Show password' : 'Hide password'; password.type = visible ? 'password' : 'text'; passwordToggle.setAttribute('aria-label', label); passwordToggle.title = label; passwordToggle.setAttribute('aria-pressed', String(!visible)); passwordToggle.querySelector('.demo-password-slash').hidden = visible; });
+      form.addEventListener('submit', async event => { event.preventDefault(); const submit = form.querySelector('button'), message = form.querySelector('p'), data = new FormData(form); submit.disabled = true; message.textContent = 'Signing in…'; try { const identity = await signInDemo(data.get('username'), data.get('password')), path = demoWorkspacePath(identity); if (path !== window.location.pathname) { window.history.pushState({}, '', path); window.dispatchEvent(new PopStateEvent('popstate')); } } catch (failure) { message.textContent = failure.message || 'Demo sign-in failed.'; } finally { submit.disabled = false; } });
+      demo.append(summary, form); choices.append(button, demo); element.append(choices);
     }
     if (error) {
       const message = document.createElement('p');

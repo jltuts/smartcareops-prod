@@ -64,6 +64,18 @@ resource "google_cloud_run_v2_service" "api" {
           }
         }
       }
+      dynamic "env" {
+        for_each = var.demo_auth_secret_version == null ? [] : [var.demo_auth_secret_version]
+        content {
+          name = "DEMO_LOCAL_AUTH_CONFIG"
+          value_source {
+            secret_key_ref {
+              secret  = google_secret_manager_secret.demo_auth.secret_id
+              version = env.value
+            }
+          }
+        }
+      }
       startup_probe {
         initial_delay_seconds = 0
         timeout_seconds       = 2
@@ -97,7 +109,7 @@ resource "google_cloud_run_v2_service" "api" {
   lifecycle {
     prevent_destroy = true
   }
-  depends_on = [google_project_service.required, google_secret_manager_secret_iam_member.runtime_gemini,
+  depends_on = [google_project_service.required, google_secret_manager_secret_iam_member.runtime_gemini, google_secret_manager_secret_iam_member.runtime_demo_auth,
     google_project_iam_member.runtime_firestore, google_storage_bucket_iam_member.api_evidence_objects,
   google_cloud_run_v2_service.event_shadow]
 }
@@ -129,7 +141,7 @@ resource "google_cloud_run_v2_service" "live" {
         startup_cpu_boost = true
       }
       dynamic "env" {
-        for_each = merge({ for key, value in local.runtime_environment : key => value if !contains(["DEV_AUTH_UIDS", "DEV_PATIENT_UIDS", "ADMIN_UIDS", "HOSPITAL_HANDOFF_CONNECTOR", "COMPUTER_USE_HEADLESS", "M57_REVIEWED_COORDINATION_ENABLED"], key) }, {
+        for_each = merge({ for key, value in local.runtime_environment : key => value if !contains(["DEV_AUTH_UIDS", "DEV_PATIENT_UIDS", "ADMIN_UIDS", "PURGE_PROTECTED_GOOGLE_EMAILS", "DEMO_LOCAL_AUTH_ENABLED", "HOSPITAL_HANDOFF_CONNECTOR", "COMPUTER_USE_HEADLESS", "M57_REVIEWED_COORDINATION_ENABLED"], key) }, {
           M10_ENABLED          = "false"
           SERVICE_MODE         = "live-transport"
           LIVE_SESSION_ENABLED = "true"

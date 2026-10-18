@@ -59,6 +59,10 @@ crash.*.log
 !*.tfvars.example
 !*.tfvars.json.example
 .terraform-work/
+.demo-auth/
+
+# Presentation working files stay local and are not published to production source control.
+*.pptx
 
 # Local PowerShell deployment helpers
 /scripts/*.ps1

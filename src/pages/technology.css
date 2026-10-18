@@ -8,6 +8,12 @@
 .technology-hero-links a:last-child { border-bottom: 0; }
 .technology-hero-links a:hover { color: #9ce0d8; }
 .technology-hero-links span { color: #9ce0d8; font-size: 18px; }
+.technology-architecture { margin-bottom: clamp(28px, 4vw, 48px); padding: clamp(18px, 2.5vw, 28px); border: 1px solid #cfe3e9; border-radius: 16px; background: #fff; scroll-margin-top: 110px; }
+.technology-architecture header { display: flex; align-items: end; justify-content: space-between; gap: 24px; margin-bottom: 18px; }
+.technology-architecture h2 { margin: 0; color: #0d3249; font-size: clamp(1.6rem, 2.5vw, 2.2rem); letter-spacing: -.035em; }
+.technology-architecture p { max-width: 76ch; margin: 6px 0 0; color: #527483; font-size: 13px; line-height: 1.55; }
+.technology-architecture a { flex: 0 0 auto; color: #0e588c; font-size: 13px; font-weight: 760; text-decoration-thickness: 1px; text-underline-offset: 4px; }
+.technology-architecture img { display: block; width: 100%; height: auto; border: 1px solid #d8e8ef; border-radius: 12px; background: #f7fbff; }
 .technology-groups { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 18px; align-items: stretch; }
 .technology-group { min-width: 0; padding: clamp(20px, 2.6vw, 30px); border: 1px solid #cfe3e9; border-radius: 16px; background: #fff; scroll-margin-top: 110px; }
 .technology-group:first-child, .technology-group:last-child { grid-column: 1 / -1; }
@@ -38,10 +44,13 @@
 .technology-stack { display: grid; grid-template-columns: minmax(230px, .65fr) minmax(0, 1.35fr); gap: clamp(30px, 5vw, 70px); margin-top: clamp(60px, 8vw, 100px); padding: clamp(30px, 4vw, 50px); border-radius: 16px; background: #0d3249; color: #fff; scroll-margin-top: 110px; }
 .technology-stack h2 { margin: 0 0 14px; color: #fff; font-size: clamp(2rem, 3.4vw, 3rem); letter-spacing: -.035em; }
 .technology-stack-intro p { max-width: 44ch; margin: 0; color: #c6dee4; font-size: 14px; line-height: 1.6; }
-.technology-stack dl { margin: 0; }
-.technology-stack dl > div { display: grid; grid-template-columns: minmax(125px, .36fr) minmax(0, 1fr); gap: 18px; padding: 15px 0; border-top: 1px solid rgb(215 240 242 / 22%); }
-.technology-stack dt { color: #9ce0d8; font-size: 14px; font-weight: 780; }
-.technology-stack dd { margin: 0; color: #e0eef0; font-size: 13px; line-height: 1.55; }
+.technology-stack-table-wrap { min-width: 0; overflow-x: auto; border: 1px solid rgb(215 240 242 / 24%); border-radius: 12px; }
+.technology-stack table { width: 100%; border-collapse: collapse; background: rgb(255 255 255 / 4%); }
+.technology-stack th, .technology-stack td { padding: 14px 16px; border-bottom: 1px solid rgb(215 240 242 / 18%); text-align: left; vertical-align: top; }
+.technology-stack thead th { background: rgb(255 255 255 / 7%); color: #fff; font-size: 12px; font-weight: 780; letter-spacing: .06em; text-transform: uppercase; }
+.technology-stack tbody th { width: 145px; color: #9ce0d8; font-size: 14px; font-weight: 780; }
+.technology-stack td { color: #e0eef0; font-size: 13px; line-height: 1.55; }
+.technology-stack tbody tr:last-child th, .technology-stack tbody tr:last-child td { border-bottom: 0; }
 .technology-boundaries { margin: 25px auto 0; max-width: 900px; color: #466a79; font-size: 13px; line-height: 1.6; text-align: center; }
 .technology-boundaries a { color: #0e588c; font-weight: 750; text-underline-offset: 3px; }
 .technology-actions { display: flex; justify-content: center; flex-wrap: wrap; gap: 14px; margin-top: 24px; }
@@ -64,13 +73,17 @@
   .technology-hero h1 { font-size: clamp(2.55rem, 11vw, 3.8rem); }
   .technology-hero-links { grid-template-columns: 1fr; padding: 9px 19px; }
   .technology-hero-links a:nth-last-child(2) { border-bottom: 1px solid rgb(220 242 243 / 22%); }
+  .technology-architecture { padding: 14px; }
+  .technology-architecture header { align-items: start; flex-direction: column; gap: 10px; }
+  .technology-architecture img { border-radius: 8px; }
   .technology-group { padding: 18px; }
   .technology-group .technology-cards, .technology-group:first-child .technology-cards, .technology-group:last-child .technology-cards { grid-template-columns: 1fr; }
   #managed-agent-governance .technology-cards { grid-template-columns: 1fr; }
   .technology-card { grid-template-columns: 44px minmax(0, 1fr); gap: 12px; padding: 14px; }
   .technology-icon { width: 44px; height: 44px; }
   .technology-stack { gap: 24px; padding: 26px 20px; }
-  .technology-stack dl > div { grid-template-columns: 1fr; gap: 5px; }
+  .technology-stack th, .technology-stack td { padding: 12px; }
+  .technology-stack tbody th { width: 112px; }
   .technology-actions { flex-direction: column; }
   .technology-actions .landing-button { width: 100%; }
 }

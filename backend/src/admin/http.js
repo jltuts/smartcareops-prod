@@ -99,10 +99,12 @@ export function adminEndpoint(profileStore, origins, dataStore = null, {
           receipt: { receiptId: setting.receipt.receiptId, mode: setting.receipt.mode, previousVersion: setting.receipt.previousVersion, updatedAt: setting.receipt.updatedAt } }); return true;
       }
       if (request.method === 'GET' && pathname === '/api/admin/purge-preview') {
+        if (!request.user.capabilities?.includes('purge_test_data')) { send(403, { code: 'PURGE_CAPABILITY_REQUIRED' }); return true; }
         if (url.search || !dataStore) throw new ProfileValidationError('PURGE_UNAVAILABLE');
         send(200, await dataStore.preview({ adminUid: request.user.uid })); return true;
       }
       if (request.method === 'POST' && pathname === '/api/admin/purge') {
+        if (!request.user.capabilities?.includes('purge_test_data')) { send(403, { code: 'PURGE_CAPABILITY_REQUIRED' }); return true; }
         if (!dataStore) throw new ProfileValidationError('PURGE_UNAVAILABLE');
         if (url.search || !writeAllowed()) { send(403, { code: 'ORIGIN_NOT_ALLOWED' }); return true; }
         const body = await readJson(request, 2048), key = idempotencyKey(request);

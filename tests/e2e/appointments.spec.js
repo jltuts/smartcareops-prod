@@ -51,6 +51,13 @@ test('Doctor proposes, Patient explicitly confirms, and both portals reflect dur
   await expect(page.getByRole('heading', { name: 'Fictional appointment proposal' })).toBeVisible();
   await expect(page.locator('#patient-next-step')).toHaveText('Choose an appointment time.');
   await expect(page.locator('.patient-journey-steps')).toContainText('Appointment Proposed');
+  expect(await page.locator('.patient-appointment-panel').evaluate(panel => {
+    const confirm = panel.querySelector('.patient-appointment-actions button');
+    const alternative = panel.querySelector('.patient-appointment-actions button:last-child');
+    const slot = panel.querySelector('.patient-appointment-slots label');
+    return panel.scrollWidth <= panel.clientWidth && slot.scrollWidth <= slot.clientWidth &&
+      getComputedStyle(confirm).backgroundImage.includes('linear-gradient') && getComputedStyle(alternative).backgroundColor === 'rgb(255, 255, 255)';
+  })).toBe(true);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   await page.locator('.patient-appointment-slots input[type=radio]').first().check();
   expect((await store.getPatientCase(caseId, 'patient-test')).appointmentProposal.state).toBe('awaiting_patient_confirmation');

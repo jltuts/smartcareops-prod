@@ -4,9 +4,21 @@ resource "google_project_iam_member" "runtime_firestore" {
   role    = "roles/datastore.user"
   member  = "serviceAccount:${google_service_account.runtime.email}"
 }
+resource "google_project_iam_member" "runtime_firebase_auth_admin" {
+  project = var.project_id
+  role    = "roles/firebaseauth.admin"
+  member  = "serviceAccount:${google_service_account.runtime.email}"
+}
 resource "google_secret_manager_secret_iam_member" "runtime_gemini" {
   project   = var.project_id
   secret_id = google_secret_manager_secret.gemini.secret_id
+  role      = "roles/secretmanager.secretAccessor"
+  member    = "serviceAccount:${google_service_account.runtime.email}"
+}
+resource "google_secret_manager_secret_iam_member" "runtime_demo_auth" {
+  count     = var.demo_auth_secret_version == null ? 0 : 1
+  project   = var.project_id
+  secret_id = google_secret_manager_secret.demo_auth.secret_id
   role      = "roles/secretmanager.secretAccessor"
   member    = "serviceAccount:${google_service_account.runtime.email}"
 }

@@ -20,6 +20,8 @@ locals {
     DEV_AUTH_UIDS                     = join(",", var.dev_auth_uids)
     DEV_PATIENT_UIDS                  = join(",", var.dev_patient_uids)
     ADMIN_UIDS                        = join(",", var.admin_uids)
+    PURGE_PROTECTED_GOOGLE_EMAILS     = join(",", var.purge_protected_google_emails)
+    DEMO_LOCAL_AUTH_ENABLED           = tostring(var.demo_auth_secret_version != null)
     ALLOWED_ORIGINS                   = join(",", var.allowed_origins)
     COMPUTER_USE_HEADLESS             = "true"
     HOSPITAL_HANDOFF_CONNECTOR        = "rest"

@@ -20,6 +20,7 @@ async function setup(page) {
         result = await f.service.decide(path.split('/').at(-1), body.decision); await f.service.tick();
       }
       else if (path.endsWith('/observations')) { result = await f.service.append(request.postDataJSON()); await f.service.tick(); }
+      else if (path.endsWith('/run')) { result = await f.service.requestRun(request.postDataJSON().requestId); await f.service.tick(); }
       else throw new Error('Unexpected command');
       await route.fulfill({ json: result });
     } catch {
@@ -34,6 +35,8 @@ async function setup(page) {
 }
 test('clinical plan displays evidence/uncertainty, approval produces verified fictional receipt across refresh', async ({ page }) => {
   const f = await setup(page);
+  await expect(page.locator('.clinical-plan-current .clinical-decision')).not.toContainText('Case reviewed');
+  await expect(page.getByText('Save fictional review receipt · Approval required', { exact: true })).toBeVisible();
   await expect(page.getByText('Explicit fictional history:', { exact: false })).toBeVisible();
   await expect(page.locator('#doctor-analysis-section')).toContainText('Fictional data does not establish a diagnosis.');
   await page.getByText('More AI details', { exact: true }).click();
@@ -60,16 +63,24 @@ test('reject keeps the simulated action from executing', async ({ page }) => {
   const responsePromise = page.waitForResponse(response => response.url().includes('/api/clinical/approvals/'));
   await page.getByRole('button', { name: 'Reject', exact: true }).click();
   expect((await responsePromise).status()).toBe(200);
-  await expect(page.getByText('Clinical review simulation · Approval required', { exact: true })).toBeVisible();
+  await expect(page.getByText('Save fictional review receipt · Approval required', { exact: true })).toBeVisible();
   await expect(page.getByText('Rejected', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Reject', exact: true })).toHaveCount(0);
   expect(f.decisionRequests).toHaveLength(1);
   expect(f.decisionRequests[0].body).toEqual({ decision: 'rejected' });
   await page.reload();
-  await expect(page.getByText('Clinical review simulation · Approval required', { exact: true })).toBeVisible();
+  await expect(page.getByText('Save fictional review receipt · Approval required', { exact: true })).toBeVisible();
   await expect(page.getByText('Rejected', { exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Reject', exact: true })).toHaveCount(0);
   expect((await f.service.view()).receipts).toHaveLength(0);
+});
+test('manual AI review with unchanged evidence keeps the current revision', async ({ page }) => {
+  const f = await setup(page);
+  await page.getByRole('button', { name: 'Run AI review', exact: true }).click();
+  await expect(page.locator('#clinical-message')).toHaveText('AI review is already up to date.');
+  await expect(page.getByRole('heading', { name: 'Revision 1', exact: true })).toBeVisible();
+  await expect(page.getByRole('heading', { name: 'Revision 2', exact: true })).toHaveCount(0);
+  expect((await f.service.view()).plans).toHaveLength(1);
 });
 test('new fictional observation produces revision 2 and preserves completed revision 1 receipt', async ({ page }) => {
   const f = await setup(page); await page.getByRole('button', { name: 'Approve', exact: true }).click();
@@ -288,8 +299,9 @@ test('pending Live case without approvable AI actions has an independent durable
   await expect(page.getByRole('heading', { name: 'Doctor decision', exact: true })).toBeVisible();
   await expect(page.getByRole('button', { name: 'Approve case review' })).toBeEnabled();
   await expect(page.locator('.clinical-plan-current')).not.toContainText('APPROVAL REQUIRED');
-  await expect(page.locator('.clinical-completed-checks')).not.toHaveAttribute('open', '');
-  await expect(page.getByText('Completed checks (1)', { exact: true })).toBeVisible();
+  await expect(page.locator('.clinical-plan-current .clinical-decision')).toHaveCount(0);
+  await page.getByText('Activity and monitoring', { exact: true }).click();
+  await expect(page.locator('.clinical-technical-details')).toContainText('Case reviewed');
   const response = page.waitForResponse(item => item.url().includes('/api/clinical/case-review'));
   await page.getByRole('button', { name: 'Approve case review' }).click();
   await expect(page.getByText('Saving doctor decision…', { exact: true })).toBeVisible();

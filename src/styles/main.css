@@ -47,6 +47,26 @@ h1[tabindex="-1"]:focus { outline: none; }
 .google-button { border-color: #747775; color: #1f1f1f; font-family: Arial, sans-serif; font-size: 14px; font-weight: 500; letter-spacing: .25px; }
 .google-button:hover { border-color: #5f6368; background: #f8f9fa; }
 .google-icon { display: block; width: 18px; height: 18px; flex: 0 0 18px; object-fit: contain; }
+.auth-choices { display: flex; align-items: center; gap: 8px; }
+.demo-signin { position: relative; }
+.demo-signin > summary { display: flex; align-items: center; min-height: 42px; padding: 9px 15px; border: 0; border-radius: 12px; background: linear-gradient(135deg, #0e588c, #167e89); color: #fff; font-size: 13px; font-weight: 700; cursor: pointer; list-style: none; box-shadow: 0 8px 20px rgb(17 91 126 / 21%); }
+.demo-signin > summary::-webkit-details-marker { display: none; }
+.demo-signin > summary:hover, .demo-signin[open] > summary { background: linear-gradient(135deg, #0e588c, #167e89); color: #fff; filter: brightness(.94); }
+.demo-signin > summary:focus-visible { outline: 3px solid #7bc1b1; outline-offset: 3px; }
+.demo-signin-form { position: absolute; z-index: 80; top: calc(100% + 8px); right: 0; display: grid; gap: 10px; width: min(300px, calc(100vw - 32px)); padding: 16px; border: 1px solid #cbd8d1; border-radius: 14px; background: #fff; box-shadow: 0 12px 32px rgb(25 59 55 / 16%); }
+.demo-signin-form label { display: grid; gap: 5px; color: #31594f; font-size: 12px; font-weight: 700; }
+.demo-signin-field { display: grid; gap: 5px; }
+.demo-signin-form input { width: 100%; min-height: 42px; padding: 9px 11px; border: 1px solid #b9cbc4; border-radius: 10px; background: #fff; color: #183b38; font: inherit; font-size: 16px; font-weight: 400; }
+.demo-signin-form input:focus-visible { outline: 3px solid #7bc1b1; outline-offset: 2px; border-color: #177f74; }
+.demo-password-label { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.demo-signin-form .demo-password-toggle { display: grid; place-items: center; width: 32px; height: 32px; min-height: 32px; padding: 6px; border: 1px solid transparent; border-radius: 10px; background: #f0f6f3; color: #167e89; cursor: pointer; }
+.demo-signin-form .demo-password-toggle svg { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.8; stroke-linecap: round; stroke-linejoin: round; }
+.demo-signin-form .demo-password-toggle:hover { border-color: #15958c; background: #fff; color: #15958c; }
+.demo-signin-form .demo-password-toggle:focus-visible { outline: 3px solid #7bc1b1; outline-offset: 3px; }
+.demo-signin-form p { min-height: 18px; margin: 0; color: #714315; font-size: 12px; line-height: 1.45; }
+.demo-signin-submit { min-height: 42px; border: 0; border-radius: 10px; background: linear-gradient(135deg, #0e588c, #167e89); color: #fff; font: inherit; font-size: 13px; font-weight: 750; cursor: pointer; box-shadow: 0 8px 20px rgb(17 91 126 / 21%); }
+.demo-signin-submit:hover { background: linear-gradient(135deg, #0e588c, #167e89); filter: brightness(.94); }
+.demo-signin-submit:disabled { cursor: wait; opacity: .65; }
 .account-identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
 .account-photo { width: 38px; height: 38px; flex: 0 0 38px; border-radius: 50%; object-fit: cover; border: 1px solid #cedbd5; background: #e8f1ed; }
 .account-photo-fallback { display: grid; place-items: center; color: #185c51; font-weight: 800; }
@@ -106,6 +126,7 @@ h2 { font-size: 20px; letter-spacing: -.025em; }
   .site-header, main, .site-footer { width: calc(100% - 32px); }
   .site-header { padding-block: 18px; flex-wrap: wrap; }
   .auth-bar { width: 100%; justify-content: space-between; }
+  .auth-choices { width: 100%; justify-content: flex-end; }
   .command-center-account-menu { margin-left: auto; }
   .account-copy strong, .account-copy span { max-width: 155px; }
   .auth-message { position: static; flex-basis: 100%; }

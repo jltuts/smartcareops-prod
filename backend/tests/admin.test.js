@@ -3,11 +3,12 @@ import assert from 'node:assert/strict';
 import { adminEndpoint } from '../src/admin/http.js';
 import { createFirestoreAdminDataStore, purgeCollections } from '../src/admin/data-store.js';
 import { createMemoryUserProfileStore } from '../src/user-profiles.js';
+import { createMemoryDemoAccessStore } from '../src/demo-access.js';
 
 function response() {
   return { headers: {}, setHeader(name, value) { this.headers[name] = value; }, writeHead(status) { this.status = status; }, end(body) { this.body = body; } };
 }
-function request(method, url, { user = { uid: 'admin', roles: ['admin'] }, body, origin = 'https://smartcareops.example', secFetchSite, idempotencyKey = '12345678-1234-4234-8234-123456789012' } = {}) {
+function request(method, url, { user = { uid: 'admin', roles: ['admin'], capabilities: ['purge_test_data'] }, body, origin = 'https://smartcareops.example', secFetchSite, idempotencyKey = '12345678-1234-4234-8234-123456789012' } = {}) {
   return { method, url, user, headers: { ...(origin !== null ? { origin } : {}), ...(secFetchSite ? { 'sec-fetch-site': secFetchSite } : {}), 'content-type': 'application/json', 'idempotency-key': idempotencyKey }, async *[Symbol.asyncIterator]() { if (body !== undefined) yield Buffer.from(JSON.stringify(body)); } };
 }
 async function call(handler, req) { const res = response(); await handler(req, res); return { status: res.status, body: JSON.parse(res.body), headers: res.headers }; }
@@ -56,6 +57,17 @@ test('approved Doctors API requires backend Admin role and returns only verifica
   assert.equal((await call(handler, request('GET', '/api/admin/approved-doctors?limit=51'))).status, 400);
 });
 
+test('admin1 cannot mutate fixed Demo Doctor access and does not receive purge capability', async () => {
+  const demoAccessStore = createMemoryDemoAccessStore();
+  const handler = adminEndpoint({ consumeAdminRateLimit: async () => true }, ['https://smartcareops.example']);
+  const admin1 = { uid: 'demo-local-admin1', roles: ['admin'], capabilities: [] };
+  assert.deepEqual(await demoAccessStore.resolve({ username: 'doctor1' }), { roles: ['doctor'], specialties: ['general_medicine', 'neurology'] });
+  assert.equal((await call(handler, request('GET', '/api/admin/demo-doctors', { user: admin1 }))).status, 404);
+  assert.equal((await call(handler, request('PUT', '/api/admin/demo-doctors/doctor2/access', { user: admin1, body: { enabled: false, expectedVersion: 1, confirmed: true } }))).status, 404);
+  assert.deepEqual(await demoAccessStore.resolve({ username: 'doctor2' }), { roles: ['doctor'], specialties: ['orthopedics'] });
+  assert.equal((await call(handler, request('GET', '/api/admin/purge-preview', { user: admin1 }))).body.code, 'PURGE_CAPABILITY_REQUIRED');
+});
+
 test('Admin specialty removal is explicit, stale-safe, role-protected, and returns a bounded receipt', async () => {
   const records = new Map([['doctor-1', { uid: 'doctor-1', email: 'doctor@example.invalid', displayName: 'Dr. Louie', roles: ['patient', 'doctor'], status: 'active', specialty: 'orthopedics',
     doctorVerification: { status: 'verified', displayName: 'Dr. Louie', specialty: 'orthopedics', verifiedAt: '2026-09-29T00:00:00.000Z', verifiedBy: 'admin-uid' } }]]);
@@ -78,6 +90,9 @@ test('Admin purge endpoint requires role, exact phrase, server preview ID, idemp
     async purge(input) { purges++; assert.equal(input.previewId, '11111111-1111-4111-8111-111111111111'); return { receiptId: 'receipt-1', status: 'completed', total: 1 }; },
   };
   const handler = adminEndpoint({}, ['https://smartcareops.example'], dataStore);
+  const demoAdmin = { uid: 'demo-local-admin1', roles: ['admin'], capabilities: [] };
+  assert.equal((await call(handler, request('GET', '/api/admin/purge-preview', { user: demoAdmin }))).body.code, 'PURGE_CAPABILITY_REQUIRED');
+  assert.equal((await call(handler, request('POST', '/api/admin/purge', { user: demoAdmin, body: { confirmation: 'PURGE ALL TEST DATA', previewId: '11111111-1111-4111-8111-111111111111' } }))).body.code, 'PURGE_CAPABILITY_REQUIRED');
   assert.equal((await call(handler, request('GET', '/api/admin/purge-preview', { user: { uid: 'patient', roles: ['patient'] } }))).status, 403);
   const body = { confirmation: 'PURGE ALL TEST DATA', previewId: '11111111-1111-4111-8111-111111111111' };
   assert.equal((await call(handler, request('POST', '/api/admin/purge', { body }))).status, 200);
@@ -150,6 +165,22 @@ test('Firestore purge allows any configured Admin and preserves every configured
   await assert.rejects(store.preview({ adminUid: 'unconfigured-admin' }), /PURGE_ADMIN_MISMATCH/);
 });
 
+test('Firestore purge previews and deletes unprotected Google accounts while retaining two protected identities', async () => {
+  const { db } = fakeFirestore();
+  const calls = [];
+  const authAccountStore = {
+    async previewPurge() { return { count: 3, preservedCount: 2, version: 'auth-version-1' }; },
+    async purgeAll(input) { calls.push(input); return 3; },
+  };
+  const store = createFirestoreAdminDataStore(db, { protectedAdminUid: 'admin-uid', authAccountStore });
+  const preview = await store.preview({ adminUid: 'admin-uid' });
+  assert.equal(preview.counts.googleAuthAccounts, 3); assert.equal(preview.preservedAuthAccounts, 2);
+  const receipt = await store.purge({ adminUid: 'admin-uid', previewId: preview.previewId,
+    idempotencyKey: '72345678-1234-4234-8234-123456789012' });
+  assert.equal(receipt.deleted.googleAuthAccounts, 3); assert.equal(receipt.preservedAuthAccounts, 2);
+  assert.deepEqual(calls, [{ expectedVersion: 'auth-version-1' }]);
+});
+
 test('purge inventories all private evidence objects and records an honest partial receipt before retry', async () => {
   const { db, roots } = fakeFirestore(); let fail = true, objects = 2;
   const evidenceStore = {
@@ -205,7 +236,7 @@ test('Admin endpoint gives the purge coordinator only the authenticated Admin id
   let context;
   const dataStore = { async purge() { return { receiptId: 'receipt-1', status: 'completed', total: 0 }; } };
   const handler = adminEndpoint({}, ['https://smartcareops.example'], dataStore, { async runPurge(value, operation) { context = value; return operation(); } });
-  const result = await call(handler, request('POST', '/api/admin/purge', { user: { uid: 'sole-admin', roles: ['admin'] },
+  const result = await call(handler, request('POST', '/api/admin/purge', { user: { uid: 'sole-admin', roles: ['admin'], capabilities: ['purge_test_data'] },
     body: { confirmation: 'PURGE ALL TEST DATA', previewId: '11111111-1111-4111-8111-111111111111' } }));
   assert.equal(result.status, 200); assert.deepEqual(context, { adminUid: 'sole-admin' });
 });

@@ -26,6 +26,7 @@ import { createResourceService } from './resources/service.js';
 import { configuredOperationsStore } from './operations/storage.js';
 import { createOperationsService } from './operations/service.js';
 import { operationsEndpoint } from './operations/http.js';
+import { demoConsoleEndpoint } from './demo-console/http.js';
 import { createConfiguredOperationsBoundaryReader } from './events/operations-boundary.js';
 import { configuredRegionalStore } from './regional/storage.js';
 import { createRegionalService } from './regional/service.js';
@@ -72,13 +73,13 @@ import { createLabReportAnalyzer } from './lab-reports/model.js';
 try { if (process.env.NODE_ENV !== 'production') loadEnvFile(fileURLToPath(new URL('../.env', import.meta.url))); }
 catch (error) { if (error.code !== 'ENOENT') throw new Error('Unable to load backend/.env'); }
 
-export function createApiServer({ liveOptions = {}, liveSessionOptions = {}, liveSessionStore = createConfiguredLiveSessionStore(), liveSessionEnabled = process.env.LIVE_SESSION_ENABLED === 'true', liveWebSocketUrl = process.env.LIVE_WEBSOCKET_URL, livePublicOnly = process.env.SERVICE_MODE === 'live-transport', agentRun = runHandoff, caseStore = createConfiguredCaseStore(), finalizationResults = caseStore.storage === 'firestore' ? createConfiguredFinalizationResults() : createFinalizationResults(), isReady = () => caseStore.storage !== 'unavailable', authOptions = {}, clinicalService, clinicalEnabled = false, managedClinicalModel, clinicalAgentEnvironment = process.env, operationsService, operationsEnabled = false, regionalService, regionalEnabled = false, notificationService, notificationEnvironment = process.env, notificationsEnabled = false, caseNoticeStore = null, labReportStore: injectedLabReportStore, labReportAnalyzer, simulationService, simulationStore, simulationEnabled = process.env.M15_ENABLED === 'true', careTwinService, careTwinStore, careTwinEnabled = process.env.M16_ENABLED === 'true', predictiveService, predictiveStore, predictiveEnabled = process.env.M17_ENABLED === 'true', patternService, patternStore, patternEnabled = process.env.M18_ENABLED === 'true', medicineAnalyzer, medicineLogger, facilityCoordinator: injectedFacilityCoordinator, hospitalConnectors, hospitalTargets, adminDataStore: injectedAdminDataStore, adminResetControl, chatIntakeStore: injectedChatIntakeStore, chatExtractor } = {}) {
+export function createApiServer({ liveOptions = {}, liveSessionOptions = {}, liveSessionStore = createConfiguredLiveSessionStore(), liveSessionEnabled = process.env.LIVE_SESSION_ENABLED === 'true', liveWebSocketUrl = process.env.LIVE_WEBSOCKET_URL, livePublicOnly = process.env.SERVICE_MODE === 'live-transport', agentRun = runHandoff, caseStore = createConfiguredCaseStore(), finalizationResults = caseStore.storage === 'firestore' ? createConfiguredFinalizationResults() : createFinalizationResults(), isReady = () => caseStore.storage !== 'unavailable', authOptions = {}, clinicalService, clinicalEnabled = false, managedClinicalModel, clinicalAgentEnvironment = process.env, operationsService, operationsEnabled = false, regionalService, regionalEnabled = false, notificationService, notificationEnvironment = process.env, notificationsEnabled = false, caseNoticeStore = null, labReportStore: injectedLabReportStore, labReportAnalyzer, simulationService, simulationStore, simulationEnabled = process.env.M15_ENABLED === 'true', careTwinService, careTwinStore, careTwinEnabled = process.env.M16_ENABLED === 'true', predictiveService, predictiveStore, predictiveEnabled = process.env.M17_ENABLED === 'true', patternService, patternStore, patternEnabled = process.env.M18_ENABLED === 'true', medicineAnalyzer, medicineLogger, facilityCoordinator: injectedFacilityCoordinator, hospitalConnectors, hospitalTargets, adminDataStore: injectedAdminDataStore, adminResetControl, demoAccessStore: injectedDemoAccessStore, chatIntakeStore: injectedChatIntakeStore, chatExtractor } = {}) {
   console.info('[environment]', JSON.stringify(environmentMetadata(caseStore.storage)));
   const readCase = caseEndpoint(caseStore);
   const origins = (process.env.ALLOWED_ORIGINS || 'http://localhost:5173,http://127.0.0.1:5173,http://localhost:4173,http://127.0.0.1:4173').split(',').map(value => value.trim());
   const liveEnabled = liveSessionEnabled && !!liveSessionStore;
   const userProfileStore = authOptions.userProfileStore || createConfiguredUserProfileStore(authOptions.env || process.env);
-  const authentication = createAuthentication({ ...authOptions, userProfileStore, allowedOrigins: origins, liveAvailable: liveEnabled });
+  const authentication = createAuthentication({ ...authOptions, ...(injectedDemoAccessStore ? { demoAccessStore: injectedDemoAccessStore } : {}), userProfileStore, allowedOrigins: origins, liveAvailable: liveEnabled });
   const configuredAdminStore = caseStore.storage === 'firestore' && process.env.CASE_STORE === 'firestore' ? createConfiguredAdminDataStore(process.env) : null;
   const resetControl = adminResetControl || configuredAdminStore;
   const adminDataStore = injectedAdminDataStore || (!livePublicOnly ? configuredAdminStore : null);
@@ -160,8 +161,10 @@ export function createApiServer({ liveOptions = {}, liveSessionOptions = {}, liv
     return clinicalCases.get(id);
   }, origins, { authorizeDoctorCase: (user, id) => caseStore.isDoctorCaseAllowed(id, user.specialties), authEnabled: authentication.enabled });
   const operations = operationsService || (operationsEnabled ? createOperationsService({ store: configuredOperationsStore(process.env, caseStore), caseStore, notificationsEnabled,
-    capacityEventsEnabled: process.env.M57_OPERATIONS_CAPACITY_SOURCE_ENABLED === 'true', readDemoBoundary: createConfiguredOperationsBoundaryReader(process.env) }) : null);
+    capacityEventsEnabled: process.env.M57_OPERATIONS_CAPACITY_SOURCE_ENABLED === 'true', automaticMonitoringEnabled: process.env.M10_AUTOMATIC_MONITORING_ENABLED === 'true',
+    readDemoBoundary: createConfiguredOperationsBoundaryReader(process.env) }) : null);
   const operationsHttp = operationsEndpoint(operations, origins, caseStore);
+  const demoConsoleHttp = demoConsoleEndpoint(operations, origins);
   const regional = regionalService || (regionalEnabled ? createRegionalService({ store: configuredRegionalStore(process.env, caseStore), caseStore, notificationsEnabled }) : null);
   const regionalHttp = regionalEndpoint(regional, origins);
   const simulationStateStore = simulationStore || ((simulationEnabled || careTwinEnabled || predictiveEnabled || patternEnabled) ? createConfiguredSimulationStore(process.env) : null);
@@ -205,6 +208,7 @@ export function createApiServer({ liveOptions = {}, liveSessionOptions = {}, liv
     }
     if (await authentication.handle(request, response)) return;
     if (pathname.startsWith('/api/admin/')) { void adminHttp(request, response); return; }
+    if (pathname.startsWith('/api/demo-console')) { void demoConsoleHttp(request, response); return; }
     if (pathname.startsWith('/api/patterns')) { void patternHttp(request, response); return; }
     if (pathname.startsWith('/api/predictive')) { void predictiveHttp(request, response); return; }
     if (pathname.startsWith('/api/caretwin')) { void careTwinHttp(request, response); return; }

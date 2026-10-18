@@ -182,9 +182,10 @@ test('scheduled monitoring survives restart and budgets stop unbounded replannin
 test('timer/manual replan with unchanged evidence cannot repeat a completed simulation', async () => {
   const f = await fixture(), data = await proposal(f), id = data.approvals[0].approvalId;
   await f.service.decide(id, 'approved'); await f.service.execute(id);
-  await f.service.requestRun('sameEvidence'); await f.service.tick();
-  const after = await f.service.view(); assert.equal(after.plans.length, 2); assert.equal(after.receipts.length, 1);
-  assert.equal(after.plans[1].recommendedActions[1].status, 'succeeded'); assert.equal(after.approvals.length, 1);
+  const result = await f.service.requestRun('sameEvidence'); await f.service.tick();
+  const after = await f.service.view(); assert.deepEqual(result, { status: 'up_to_date', revisionId: 'revision_1' });
+  assert.equal(after.plans.length, 1); assert.equal(after.receipts.length, 1);
+  assert.equal(after.plans[0].recommendedActions[1].status, 'succeeded'); assert.equal(after.approvals.length, 1);
 });
 test('expiry and revoked approval cannot execute', async () => {
   let clock = Date.now(); const f = await fixture({ now: () => clock }), data = await proposal(f), id = data.approvals[0].approvalId;
@@ -192,7 +193,7 @@ test('expiry and revoked approval cannot execute', async () => {
   clock += 901000; await assert.rejects(f.service.decide(id, 'approved'), { code: 'APPROVAL_EXPIRED' });
 });
 test('failed/malformed assessment retains last plan and gates its actions', async () => {
-  const f = await fixture(); await proposal(f); await f.service.requestRun('manualRetry');
+  const f = await fixture(); await proposal(f); await f.service.append(observationSet('newEvidence', 88));
   const broken = createClinicalService({ ...f, model: async () => ({ rawThoughts: 'never persist' }) }); await broken.tick();
   const data = await broken.view(); assert.equal(data.plans.length, 1); assert.equal(data.meta.ready, false);
   assert.equal(JSON.stringify(data).includes('never persist'), false);

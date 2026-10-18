@@ -24,6 +24,16 @@ test('Firestore fresh clients preserve hospital plans, resource evidence and rec
   assert.equal(final.currentSnapshot.ambulance.available, 3);
   assert.equal(final.observations.filter(item => item.snapshotRef === final.currentSnapshot.snapshotId).length, 9);
 });
+test('Firestore Operations history remains readable after observations and resource evidence exceed the shared default', async () => {
+  const f = await fixture();
+  for (let index = 0; index < 205; index++) {
+    f.db.documents.set(`hospitalWorkspaces/OPS-HOSP-001/observations/legacy-${index}`, { observationId: `legacy-${index}` });
+    f.db.documents.set(`hospitalWorkspaces/OPS-HOSP-001/resourceSnapshots/legacy-${index}`, { evidenceId: `legacy-${index}` });
+  }
+  const state = await firestoreOperationsStore(f.db).read('OPS-HOSP-001');
+  assert.ok(Object.keys(state.observations).length > 200);
+  assert.ok(Object.keys(state.resourceSnapshots).length > 200);
+});
 test('Firestore capacity/event rollback is atomic', async () => {
   const f = await fixture(); f.db.failNext();
   await assert.rejects(f.service.changeCapacity({ requestId: 'fail', hospitalId: 'HOSP-001', monitoredBedsAvailable: 0, expectedVersion: 2 }));

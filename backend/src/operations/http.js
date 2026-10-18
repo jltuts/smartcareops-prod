@@ -18,7 +18,11 @@ export function operationsEndpoint(service, origins, caseStore) {
       let input; try { input = JSON.parse(body); } catch { throw new ClinicalError('INVALID_JSON', 400); }
       let result, tick = true;
       if (request.url === '/api/operations/members') result = await service.enroll(input);
-      else if (request.url === '/api/operations/capacity') result = await service.changeCapacity(input);
+      else if (request.url === '/api/operations/capacity') {
+        result = await service.changeCapacity(input);
+        await service.tick();
+        tick = false;
+      }
       else if (request.url === '/api/operations/run') { exact(input, ['requestId']); result = await service.requestRun(input.requestId); }
       else if (request.url === '/api/operations/reset') { result = await service.resetDemo(input); tick = false; }
       else if (request.url === '/api/operations/demo-verify') { exact(input, ['caseId']); result = { demoBoundary: await service.verifyDemoBoundary(input.caseId) }; }

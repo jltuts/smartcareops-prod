@@ -11,7 +11,7 @@ export function memoryOperationsStore(caseStore, backing = new Map(), { capacity
   } });
 }
 export function firestoreOperationsStore(db, { capacityOutboxEnabled = false } = {}) {
-  return firestoreClinicalStore(db, { rootCollection: 'hospitalWorkspaces', recordBuckets, empty, captureFleet: true,
+  return firestoreClinicalStore(db, { rootCollection: 'hospitalWorkspaces', recordBuckets, recordCapacities: { events: 1000, observations: 1000, resourceSnapshots: 1000 }, empty, captureFleet: true,
     ...(capacityOutboxEnabled ? { outboxFamily: 'operations', outboxEventTypes: ['hospital.capacity.changed'] } : {}), hydrate: async (state, get, database) => {
     state.caseEvidence = await Promise.all(Object.values(state.members).sort((a, b) => a.caseId.localeCompare(b.caseId)).map(async member => {
       const doc = await get(database.collection('cases').doc(member.caseId)); return projectCase(doc.exists ? doc.data() : null, member);

@@ -72,9 +72,6 @@
 .doctor-page .clinical-decision { background: #f5faf8; }
 .doctor-page .clinical-action { margin-top: 10px; padding: 12px; border: 1px solid #d9e6e2; }
 .doctor-page .clinical-case-decision { position: static; margin: 14px 0 0; border-color: #8abcb1; background: #eaf6f2; box-shadow: none; }
-.clinical-completed-checks { margin: 12px 14px; border-top: 1px solid #d8e5e2; }
-.clinical-completed-checks > summary { padding: 12px 2px; color: #176e69; font-size: 13px; font-weight: 800; cursor: pointer; }
-.clinical-completed-checks > .clinical-decision { margin: 0; }
 .clinical-plan-historical { padding: 0 14px 12px; opacity: 1; }
 .clinical-plan-historical > summary { padding: 13px 2px; }
 .clinical-plan-historical[open] > summary { border-bottom: 1px solid #d8e5e2; }

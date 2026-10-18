@@ -1,15 +1,18 @@
 import { getApps, initializeApp } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
-import { createOriginPolicy } from './origin.js';
+import { browserSignalsAccept, createOriginPolicy } from './origin.js';
 import { createConfiguredUserProfileStore } from './user-profiles.js';
 import { ProfileValidationError } from './user-profiles.js';
 import { liveLanguagesForModel } from '../../shared/live-languages.js';
 import { doctorDisplayNameGuidance } from '../../shared/doctor-display-name.js';
+import { createDemoAuthentication, loadDemoAuthConfig } from './demo-auth.js';
+import { createConfiguredDemoAccessStore } from './demo-access.js';
 
 const demoRoles = Object.freeze(['patient', 'doctor', 'dispatcher', 'command-center']);
 const patientRole = Object.freeze(['patient']);
 const localPatient = Object.freeze({ uid: 'local-development-patient', email: null, displayName: 'Local Patient', roles: patientRole });
 const requiredRole = (path, request) => {
+  if (path.startsWith('/api/demo-console')) return 'authenticated-demo';
   if (path.startsWith('/api/admin/')) return 'admin';
   if (path.startsWith('/api/doctor/') || path.startsWith('/api/clinical/')) return 'doctor';
   if (/^\/api\/cases\/[^/]+\/route$/.test(path)) return 'command-center';
@@ -46,7 +49,7 @@ export function configuredTokenVerifier(env = process.env) {
   return token => getAuth(app).verifyIdToken(token);
 }
 
-export function createAuthentication({ env = process.env, verifyToken, allowedOrigins = [], liveAvailable = false, userProfileStore = createConfiguredUserProfileStore(env) } = {}) {
+export function createAuthentication({ env = process.env, verifyToken, allowedOrigins = [], liveAvailable = false, userProfileStore = createConfiguredUserProfileStore(env), demoAccessStore = createConfiguredDemoAccessStore(env), demoAuthentication = createDemoAuthentication(loadDemoAuthConfig(env)) } = {}) {
   // Production cannot opt out. Local development retains its existing demo mode.
   const enabled = env.NODE_ENV === 'production' || env.AUTH_MODE === 'firebase';
   const allowedUids = new Set((env.DEV_AUTH_UIDS || '').split(',').map(value => value.trim()).filter(Boolean));
@@ -78,22 +81,43 @@ export function createAuthentication({ env = process.env, verifyToken, allowedOr
       response.setHeader('Access-Control-Allow-Headers', 'Authorization, Content-Type, Idempotency-Key, X-SmartCareOps-Finalization-Id, X-SmartCareOps-Chat-Session-Id');
       response.writeHead(204); response.end(); return true;
     }
+    if (path === '/api/auth/demo-login' && request.method === 'POST') {
+      if (!demoAuthentication) { json(response, 404, { code: 'DEMO_LOGIN_UNAVAILABLE' }); return true; }
+      try {
+        if (!origin || !browserSignalsAccept(request.headers) || request.headers['content-type']?.split(';')[0].trim() !== 'application/json') throw new Error('DEMO_LOGIN_INVALID');
+        let raw = ''; for await (const chunk of request) { raw += chunk.toString(); if (raw.length > 1024) throw new Error('DEMO_LOGIN_INVALID'); }
+        const body = JSON.parse(raw || '{}');
+        if (!body || typeof body !== 'object' || Array.isArray(body) || Object.keys(body).some(key => !['username', 'password'].includes(key))) throw new Error('DEMO_LOGIN_INVALID');
+        const result = await demoAuthentication.login(body.username, body.password, request.socket?.remoteAddress || 'unknown');
+        json(response, 200, result); return true;
+      } catch (error) {
+        const limited = error?.code === 'DEMO_LOGIN_RATE_LIMITED';
+        json(response, limited ? 429 : 401, { code: limited ? 'DEMO_LOGIN_RATE_LIMITED' : 'DEMO_LOGIN_INVALID', message: limited ? 'Too many attempts. Wait five minutes and try again.' : 'The username or password is incorrect.' }); return true;
+      }
+    }
     // Gateway replaces Authorization with its Cloud Run identity token and forwards
     // the original header. Neither header is trusted until Firebase verification.
     const header = request.headers['x-forwarded-authorization'] || request.headers.authorization;
     const match = typeof header === 'string' && /^Bearer ([^\s,]{1,8192})$/.exec(header);
     if (!match) { json(response, 401, { code: 'AUTH_REQUIRED', message: 'Sign in to continue.' }); return true; }
-    let decoded;
+    let decoded, demoAccount;
     try {
-      verifier ||= configuredTokenVerifier(env);
-      decoded = await verifier(match[1]);
-      if (!decoded?.uid || decoded.firebase?.sign_in_provider !== 'google.com') throw new Error('Unsupported identity');
+      let header; try { header = JSON.parse(Buffer.from(match[1].split('.')[0], 'base64url').toString('utf8')); } catch { header = null; }
+      if (header?.alg === 'HS256') {
+        if (!demoAuthentication) throw new Error('Unsupported identity');
+        demoAccount = demoAuthentication.verify(match[1]);
+        decoded = { uid: demoAccount.uid, name: demoAccount.displayName };
+      } else {
+        verifier ||= configuredTokenVerifier(env);
+        decoded = await verifier(match[1]);
+        if (!decoded?.uid || decoded.firebase?.sign_in_provider !== 'google.com') throw new Error('Unsupported identity');
+      }
     } catch {
       json(response, 401, { code: 'AUTH_INVALID', message: 'Please sign in again.' }); return true;
     }
     let profile;
     let patientAccessMode = 'open';
-    if (env.APP_ENV === 'development') {
+    if (!demoAccount && env.APP_ENV === 'development') {
       try { profile = await userProfileStore.provisionPatient(decoded); }
       catch { json(response, 503, { code: 'AUTH_PROFILE_UNAVAILABLE', message: 'Account access is temporarily unavailable.' }); return true; }
       if (!profile || profile.uid !== decoded.uid || profile.status !== 'active') {
@@ -107,7 +131,7 @@ export function createAuthentication({ env = process.env, verifyToken, allowedOr
     const patientRoles = env.APP_ENV === 'development'
       ? (patientAccessMode === 'open' || approvedPatient || adminUids.has(decoded.uid) ? ['patient'] : [])
       : [];
-    const roles = [...new Set([
+    const firebaseRoles = [...new Set([
       ...(adminUids.has(decoded.uid) ? ['admin'] : []),
       ...(env.APP_ENV !== 'development' ? [] : [
         ...storedRoles.filter(role => role !== 'patient' || patientRoles.includes('patient')),
@@ -116,11 +140,19 @@ export function createAuthentication({ env = process.env, verifyToken, allowedOr
         ...(patientUids.has(decoded.uid) && (patientAccessMode === 'open' || approvedPatient || adminUids.has(decoded.uid)) ? patientRole : []),
       ]),
     ])];
-    const approved = roles.length > 0;
-    const doctorSpecialties = roles.includes('doctor') ? (Array.isArray(profile?.specialties) ? profile.specialties : profile?.specialty ? [profile.specialty] : []) : [];
+    let roles = firebaseRoles, doctorSpecialties = firebaseRoles.includes('doctor') ? (Array.isArray(profile?.specialties) ? profile.specialties : profile?.specialty ? [profile.specialty] : []) : [];
+    if (demoAccount) {
+      try { const access = await demoAccessStore.resolve(demoAccount); roles = access.roles; doctorSpecialties = access.specialties; }
+      catch { json(response, 503, { code: 'AUTH_ACCESS_POLICY_UNAVAILABLE', message: 'Account access is temporarily unavailable.' }); return true; }
+    }
+    const approved = demoAccount ? true : roles.length > 0;
+    const capabilities = !demoAccount && adminUids.has(decoded.uid) ? ['purge_test_data'] : [];
     request.user = Object.freeze({ uid: decoded.uid, email: profile?.email || decoded.email || null,
-      displayName: roles.includes('doctor') && profile?.doctorVerification?.status === 'verified' ? profile.doctorVerification.displayName : profile?.displayName || decoded.name || null,
-      ...(doctorSpecialties.length ? { specialty: doctorSpecialties[0], specialties: Object.freeze(doctorSpecialties), doctorVerification: profile.doctorVerification } : {}), roles });
+      displayName: demoAccount?.displayName || (roles.includes('doctor') && profile?.doctorVerification?.status === 'verified' ? profile.doctorVerification.displayName : profile?.displayName || decoded.name || null),
+      ...(demoAccount ? { username: demoAccount.username, authProvider: 'demo-local' } : { authProvider: 'firebase-google' }),
+      ...(capabilities.length ? { capabilities: Object.freeze(capabilities) } : {}),
+      ...(doctorSpecialties.length ? { specialty: doctorSpecialties[0], specialties: Object.freeze(doctorSpecialties), ...(profile?.doctorVerification ? { doctorVerification: profile.doctorVerification } : {}) } : {}), roles });
+    request.demoAccess = approved;
     if (path === '/api/auth/me' && request.method === 'GET') {
       const patientLiveAvailable = liveAvailable && roles.includes('patient');
       json(response, 200, { user: request.user, demoAccess: approved, liveAvailable: patientLiveAvailable,
@@ -138,6 +170,9 @@ export function createAuthentication({ env = process.env, verifyToken, allowedOr
       } catch (error) {
         json(response, error instanceof ProfileValidationError ? 400 : 503, { code: error instanceof ProfileValidationError ? error.code : 'PATIENT_APPLICATION_UNAVAILABLE', message: 'The Patient access application could not be saved.' }); return true;
       }
+    }
+    if (demoAccount && (path === '/api/profile' || path === '/api/patient/application' || path === '/api/doctor/application')) {
+      json(response, 403, { code: 'PROFILE_NOT_AVAILABLE', message: 'Demo accounts are managed by the demo administrator.' }); return true;
     }
     if (path === '/api/profile' && request.method === 'GET') {
       const own = await userProfileStore.getOwnProfile(decoded.uid);
@@ -168,7 +203,7 @@ export function createAuthentication({ env = process.env, verifyToken, allowedOr
     // Identity alone does not grant access to existing privileged demo APIs.
     if (!approved) { json(response, 403, { code: 'DEV_ACCESS_REQUIRED', message: 'This account has not been approved for the DEV workspace.' }); return true; }
     const role = requiredRole(path, request);
-    if (role && !hasRequiredRole(roles, role)) { json(response, 403, { code: 'ROLE_REQUIRED', message: 'This account does not have access to this portal.' }); return true; }
+    if (role === 'authenticated-demo' ? !request.demoAccess : role && !hasRequiredRole(roles, role)) { json(response, 403, { code: 'ROLE_REQUIRED', message: 'This account does not have access to this portal.' }); return true; }
     if ((path.startsWith('/api/doctor/') || path.startsWith('/api/clinical/')) && hasRole(roles, 'doctor') && !request.user.specialties?.length) {
       json(response, 403, { code: 'DOCTOR_SPECIALTY_UNVERIFIED', message: 'A verified Doctor specialty is required for this clinical workspace.' }); return true;
     }
@@ -177,5 +212,5 @@ export function createAuthentication({ env = process.env, verifyToken, allowedOr
     }
     return false;
   }
-  return { enabled, handle, close: () => userProfileStore.close?.() };
+  return { enabled, handle, demoAccessStore, close: async () => { await userProfileStore.close?.(); await demoAccessStore.close?.(); } };
 }

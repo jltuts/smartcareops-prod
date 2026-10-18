@@ -131,7 +131,7 @@ test('durable finalization polling survives an immediate refresh with an aborted
   await expect.poll(() => requests).toBeGreaterThan(1);
   ready = true;
   await expect(page.locator('#patient-case-status')).toHaveText('Waiting for clinical review');
-  await expect(page.locator('#patient-case-storage')).toHaveText('Firestore');
+  await expect(page.locator('#patient-case-storage')).toHaveCount(0);
   await expect.poll(() => page.evaluate(() => sessionStorage.getItem('smartcareops-finalization-id'))).toBeNull();
   await page.reload();
   await expect(page.locator('#patient-case-id')).toHaveText(caseId);

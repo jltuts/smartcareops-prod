@@ -12,14 +12,14 @@ import { recordPressureSignal } from './pressure.js';
 import { projectDecisionTrace } from './decision-trace.js';
 const id = scope.workspaceId, iso = now => new Date(now).toISOString();
 const values = Object.values;
-export function createOperationsService({ store, caseStore, model = createOperationsModel(), resources = createResourceService(), now = Date.now, notificationsEnabled = false, notificationOptions = {}, capacityEventsEnabled = false, readDemoBoundary = async () => null } = {}) {
+export function createOperationsService({ store, caseStore, model = createOperationsModel(), resources = createResourceService(), now = Date.now, notificationsEnabled = false, notificationOptions = {}, capacityEventsEnabled = false, automaticMonitoringEnabled = true, readDemoBoundary = async () => null } = {}) {
   let running = false, closed = false, activeTick;
   const controllers = new Set();
   const notificationSource = { scope: scope.scope, subjectId: id, agentType: scope.agentType };
   const transaction = change => store.transaction(id, change);
   const approvalFor = (state, revisionId, actionId) => values(state.approvals).find(item => item.planRevisionId === revisionId && item.actionId === actionId);
   const event = (state, type, eventId, extra = {}) => {
-    requireThat(values(state.events).length < 180, 'OPERATIONS_EVENT_LIMIT', 409);
+    requireThat((state.meta.eventVersion || 0) - (state.meta.eventBudgetStart || 0) < 180, 'OPERATIONS_EVENT_LIMIT', 409);
     state.meta.eventVersion = (state.meta.eventVersion || 0) + 1;
     state.events[eventId] = durableEvent({ eventId, type, subjectId: id, subjectType: 'hospital', version: state.meta.snapshotVersion, now: now(), scope,
       pending: ['resource.updated', 'hospital.snapshot.updated', 'hospital.plan.requested', 'hospital.monitor.due'].includes(type), extra: { eventVersion: state.meta.eventVersion, ...extra } });
@@ -27,13 +27,15 @@ export function createOperationsService({ store, caseStore, model = createOperat
   const invalidate = state => { state.meta.ready = false; state.meta.dirty = true; supersedeApprovals(state); if (notificationsEnabled) supersedeNotifications(state, now()); };
   const initialize = state => {
     initializeResources(state, now());
-    state.meta ||= { ...scope, snapshotVersion: 0, revision: 0, currentRevisionId: null, ready: false, dirty: true, runCount: 0, modelCalls: 0, lease: null, nextMonitorAt: 0, lastError: null };
+    state.meta ||= { ...scope, snapshotVersion: 0, snapshotBudgetStart: 0, revision: 0, currentRevisionId: null, ready: false, dirty: true, runCount: 0, modelCalls: 0, eventBudgetStart: 0, lease: null, nextMonitorAt: 0, lastError: null };
+    state.meta.snapshotBudgetStart ??= state.meta.snapshotVersion || 0;
   };
   const refresh = state => {
     initialize(state);
     const current = state.snapshots[`OPS-SNAPSHOT-${state.meta.snapshotVersion}`];
     if (current?.evidenceFingerprint === evidenceFingerprint(state)) return;
-    requireThat(state.meta.snapshotVersion < 20, 'OPERATIONS_SNAPSHOT_LIMIT', 409);
+    if (state.meta.snapshotVersion - state.meta.snapshotBudgetStart >= 20) state.meta.snapshotBudgetStart = state.meta.snapshotVersion;
+    requireThat(state.meta.snapshotVersion - state.meta.snapshotBudgetStart < 20, 'OPERATIONS_SNAPSHOT_LIMIT', 409);
     const next = snapshot(state, now()); state.snapshots[next.snapshotId] = next; state.meta.snapshotVersion = next.snapshotVersion;
     const metrics = { active_patient_count: next.counts.active, emergency_case_count: next.counts.emergency, respiratory_case_count: next.counts.respiratory,
       incoming_case_count: next.counts.incoming, monitored_beds_available: next.capacity.monitoredBedsAvailable, icu_beds_available: next.capacity.icuBedsAvailable,
@@ -127,7 +129,9 @@ export function createOperationsService({ store, caseStore, model = createOperat
         requireThat(!state.meta.lease || state.meta.lease.expiresAt <= now(), 'OPERATIONS_RESET_BUSY', 409);
         resetHospitalCapacity(state, scope.hospitalId, now()); supersedeApprovals(state);
         Object.assign(state.meta, { runBudgetStart: state.meta.runCount || 0, modelCallBudgetStart: state.meta.modelCalls || 0,
-          currentRevisionId: null, ready: false, dirty: false, lease: null, nextMonitorAt: now() + 300000, lastError: null });
+          snapshotBudgetStart: state.meta.snapshotVersion || 0,
+          eventBudgetStart: state.meta.eventVersion || 0, currentRevisionId: null, ready: false, dirty: false, lease: null,
+          nextMonitorAt: automaticMonitoringEnabled ? now() + 300000 : Number.MAX_SAFE_INTEGER, lastError: null });
         event(state, 'hospital.demo.reset', eventId);
         return { reset: true, monitoredBedsAvailable: state.resourceEnvironment.hospitals.find(item => item.hospitalId === scope.hospitalId).capacity.monitoredBedsAvailable };
       });
@@ -164,7 +168,7 @@ export function createOperationsService({ store, caseStore, model = createOperat
           if (!values(state.members).some(item => item.status !== 'closed')) return null;
           if (state.meta.lease && state.meta.lease.expiresAt > now()) return null;
           if (state.meta.lease) { state.agentRuns[state.meta.lease.runId].status = 'interrupted'; state.meta.lease = null; invalidate(state); }
-          if (!state.meta.dirty && state.meta.nextMonitorAt <= now()) { invalidate(state); event(state, 'hospital.monitor.due', `monitor_${state.meta.runCount}`); }
+          if (automaticMonitoringEnabled && !state.meta.dirty && state.meta.nextMonitorAt <= now()) { invalidate(state); event(state, 'hospital.monitor.due', `monitor_${state.meta.runCount}`); }
           if (!state.meta.dirty) return null;
           if (state.meta.runCount - (state.meta.runBudgetStart || 0) >= 8 || state.meta.modelCalls - (state.meta.modelCallBudgetStart || 0) >= 12) {
             state.meta.ready = false; state.meta.lastError = { code: 'OPERATIONS_BUDGET_EXHAUSTED', message: 'Demo assessment budget reached. Previous plans remain available.' }; return null;
@@ -217,7 +221,7 @@ export function createOperationsService({ store, caseStore, model = createOperat
                   fleetEvidenceVersion: snap.fleetEvidenceVersion, expiresAt: iso(now() + 600000), reviewerId: null };
               }
               if (notificationsEnabled) stageNotifications(live, notificationSource, live.plans[revisionId], actions, now());
-              live.meta.ready = true; live.meta.lastError = null; live.meta.nextMonitorAt = now() + 300000;
+              live.meta.ready = true; live.meta.lastError = null; live.meta.nextMonitorAt = automaticMonitoringEnabled ? now() + 300000 : Number.MAX_SAFE_INTEGER;
               for (const trigger of values(live.events)) if (trigger.status === 'pending' && trigger.eventVersion <= state.meta.eventVersion) { trigger.status = 'completed'; trigger.processedBy = claim.runId; }
               live.meta.lastProcessedEventVersion = state.meta.eventVersion;
               live.monitoring.main = monitoringRecord({ scope, subject: { workspaceId: id }, revisionId, conditions: assessment.monitoringConditions, now: now() });

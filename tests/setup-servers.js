@@ -28,7 +28,8 @@ export default async function setupServers() {
     api.server.listen(apiPort, '127.0.0.1');
     await once(api.server, 'listening');
     const target = `http://127.0.0.1:${apiPort}`;
-    vite = await createServer({ server: { host: '127.0.0.1', port: 4173, strictPort: true, proxy: {
+    const webPort = Number(process.env.E2E_WEB_PORT || 4173);
+    vite = await createServer({ server: { host: '127.0.0.1', port: webPort, strictPort: true, proxy: {
       '/api/auth': { target },
       '/api/profile': { target },
       '/api/notifications': { target },
@@ -37,6 +38,7 @@ export default async function setupServers() {
       '/api/patterns': { target },
       '/api/caretwin': { target },
       '/api/operations': { target },
+      '/api/demo-console': { target },
       '/api/clinical': { target },
       '/api/ambulances': { target },
       '/api/dispatcher': { target },

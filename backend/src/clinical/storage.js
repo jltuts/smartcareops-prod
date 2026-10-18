@@ -45,11 +45,11 @@ export function memoryClinicalStore(backing = new Map(), readFleet, { empty = em
     async close() {},
   };
 }
-export function firestoreClinicalStore(db, { rootCollection = 'clinicalWorkspaces', recordBuckets = buckets, empty = emptyWorkspace, hydrate, captureFleet = false, captureCase = false, outboxFamily = null, outboxEventTypes = null, outboxCollection = 'eventOutbox' } = {}) {
+export function firestoreClinicalStore(db, { rootCollection = 'clinicalWorkspaces', recordBuckets = buckets, recordCapacities = {}, empty = emptyWorkspace, hydrate, captureFleet = false, captureCase = false, outboxFamily = null, outboxEventTypes = null, outboxCollection = 'eventOutbox' } = {}) {
   const root = id => db.collection(rootCollection).doc(id);
   async function read(id, transaction) {
     const ref = root(id), get = query => transaction ? transaction.get(query) : query.get();
-    const [doc, resourceDoc, ...snapshots] = await Promise.all([get(ref), get(db.collection('resourceEnvironments').doc('m9-demo')), ...recordBuckets.map(key => get(ref.collection(key).limit(201)))]);
+    const [doc, resourceDoc, ...snapshots] = await Promise.all([get(ref), get(db.collection('resourceEnvironments').doc('m9-demo')), ...recordBuckets.map(key => get(ref.collection(key).limit((recordCapacities[key] || 200) + 1)))]);
     const state = empty(); state.meta = doc.exists ? doc.data() : null;
     state.resourceEnvironment = resourceDoc.exists ? resourceDoc.data() : null;
     if (state.resourceEnvironment) {
@@ -61,7 +61,7 @@ export function firestoreClinicalStore(db, { rootCollection = 'clinicalWorkspace
       if (captureFleet) state.fleetEvidence = units;
     }
     snapshots.forEach((snapshot, index) => {
-      if (snapshot.docs.length > 200) throw new Error('Workspace capacity exceeded');
+      if (snapshot.docs.length > (recordCapacities[recordBuckets[index]] || 200)) throw new Error('Workspace capacity exceeded');
       state[recordBuckets[index]] = Object.fromEntries(snapshot.docs.map(item => [item.id, item.data()]));
     });
     if (hydrate) await hydrate(state, get, db);

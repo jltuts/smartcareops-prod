@@ -32,3 +32,8 @@ html:has(.manual-page), body:has(.manual-page) { background: #f7fbff !important;
 
 /* Keep the overview card's subsections distinct after paragraphs and lists. */
 #overview [data-manual-platform-purpose] > h3:not(:first-child) { margin-top: 24px; }
+.manual-table-wrap { max-width: 100%; overflow-x: auto; }
+.manual-demo-accounts { width: 100%; border-collapse: collapse; font-size: .9rem; }
+.manual-demo-accounts th, .manual-demo-accounts td { padding: 10px 12px; border-bottom: 1px solid #d7e1da; text-align: left; vertical-align: top; }
+.manual-demo-accounts th { color: #31594f; font-size: .75rem; letter-spacing: .06em; text-transform: uppercase; }
+.manual-demo-accounts code { white-space: nowrap; }

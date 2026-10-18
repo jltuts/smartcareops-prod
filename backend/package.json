@@ -9,6 +9,7 @@
   "scripts": {
     "start": "node src/server.js",
     "test": "node --test tests/*.test.js",
+    "generate:demo-auth": "node scripts/generate-demo-auth-config.js",
     "evaluate:m60": "node scripts/evaluate-m60-models.js",
     "prepare:m60-managed-ingestion": "node scripts/prepare-m60-managed-ingestion.js",
     "prepare:m60-policy": "node scripts/prepare-m60-policy-corpus.js",

@@ -25,3 +25,18 @@ test('operations HTTP rejects foreign origins, forged scope/reviewer and arbitra
   assert.equal((await post('/reset', { requestId: 'demo-reset' })).status, 200);
   assert.equal((await f.service.view()).receipts.length, 3);
 });
+
+test('capacity request completes its operational assessment before responding', async t => {
+  const f = await operationsFixture(); await f.service.tick(); const origin = 'http://localhost:4173';
+  const server = createServer(operationsEndpoint(f.service, [origin])); server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  t.after(async () => { await f.service.close(); await new Promise(resolve => server.close(resolve)); });
+  const response = await fetch(`http://127.0.0.1:${server.address().port}/api/operations/capacity`, {
+    method: 'POST', headers: { Origin: origin, 'Content-Type': 'application/json' },
+    body: JSON.stringify({ requestId: 'capacity-and-assess', hospitalId: 'HOSP-001', monitoredBedsAvailable: 0, expectedVersion: 2 }),
+  });
+  assert.equal(response.status, 200);
+  const view = await f.service.view();
+  assert.equal(view.meta.ready, true);
+  assert.equal(view.currentSnapshot.capacity.monitoredBedsAvailable, 0);
+  assert.equal(view.plans.find(item => item.revisionId === view.meta.currentRevisionId).assessment.status, 'CONSTRAINED');
+});

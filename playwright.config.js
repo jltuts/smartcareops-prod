@@ -10,7 +10,7 @@ export default defineConfig({
   reporter: 'list',
   globalSetup: './tests/setup-servers.js',
   use: {
-    baseURL: 'http://127.0.0.1:4173',
+    baseURL: `http://127.0.0.1:${process.env.E2E_WEB_PORT || 4173}`,
     trace: 'retain-on-failure',
     ...(process.env.PLAYWRIGHT_CHANNEL ? { channel: process.env.PLAYWRIGHT_CHANNEL } : {}),
   },

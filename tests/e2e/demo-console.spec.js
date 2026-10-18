@@ -19,7 +19,7 @@ const operations = { demoBoundary: boundary,
 };
 
 test('Demo Console verifies the routine intake boundary without exposing Patient data', async ({ page }) => {
-  await page.route('**/api/operations', route => route.fulfill({ json: operations }));
+  await page.route('**/api/demo-console', route => route.fulfill({ json: operations }));
   await page.goto('/demo-console');
   await expect(page.getByRole('heading', { name: 'Demo Console' })).toBeVisible();
   await expect(page.getByText('Routine intake stayed in the normal care pathway.')).toBeVisible();
@@ -31,14 +31,14 @@ test('Demo Console verifies the routine intake boundary without exposing Patient
   await expect(page.getByText('Hospital capacity changed')).toBeVisible();
   await expect(page.getByText('Routine intake routing stops here by design.')).toBeVisible();
   await expect(page.getByText(/dizz/i)).toHaveCount(0);
-  await expect(page.getByRole('link', { name: 'Open Command Center' })).toHaveAttribute('href', '/command-center');
+  await expect(page.locator('.demo-console-heading').getByRole('link', { name: 'Home' })).toHaveAttribute('href', '/');
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBeTruthy();
 });
 
 test('Demo Console verifies a pasted Case ID, clears it, and displays only its masked trace', async ({ page }) => {
   const fullCaseId = 'SC-12345678-1234-4123-8123-123456789abc';
-  await page.route('**/api/operations', route => route.fulfill({ json: operations }));
-  await page.route('**/api/operations/demo-verify', async route => {
+  await page.route('**/api/demo-console', route => route.fulfill({ json: operations }));
+  await page.route('**/api/demo-console/verify', async route => {
     expect(await route.request().postDataJSON()).toEqual({ caseId: fullCaseId });
     await route.fulfill({ json: { demoBoundary: boundary } });
   });
@@ -55,8 +55,8 @@ test('Demo Console presents an older projection as a pre-rollout trace without i
   const fullCaseId = 'SC-6ac4e105-34ef-47cf-a0a0-39cab57bef2d';
   const legacy = { ...boundary, classificationStatus: 'legacy_unclassified', reference: fullCaseId, hospitalOperationsTriggered: null,
     trace: boundary.trace.map(item => ['Routing decision', 'Hospital Operations activation'].includes(item.label) ? { ...item, status: 'Not recorded' } : item) };
-  await page.route('**/api/operations', route => route.fulfill({ json: operations }));
-  await page.route('**/api/operations/demo-verify', route => route.fulfill({ json: { demoBoundary: legacy } }));
+  await page.route('**/api/demo-console', route => route.fulfill({ json: operations }));
+  await page.route('**/api/demo-console/verify', route => route.fulfill({ json: { demoBoundary: legacy } }));
   await page.goto('/demo-console');
   await page.getByLabel('Verify a specific case').fill(fullCaseId);
   await page.getByRole('button', { name: 'Verify trace' }).click();
@@ -72,8 +72,8 @@ test('Demo Console shows the human-controlled emergency response without startin
     routing: 'Dispatcher acknowledged', hospitalOperationsTriggered: false,
     trace: [['Emergency intake', 'Committed'], ['Outbox event', 'Recorded'], ['Audit receipt', 'Recorded'], ['Operations projection', 'Recorded'],
       ['Emergency pathway', 'Dispatcher acknowledged'], ['Emergency response', 'Ambulance en route'], ['Hospital Operations activation', 'Not requested']].map(([label, status]) => ({ label, status })) };
-  await page.route('**/api/operations', route => route.fulfill({ json: operations }));
-  await page.route('**/api/operations/demo-verify', route => route.fulfill({ json: { demoBoundary: emergency } }));
+  await page.route('**/api/demo-console', route => route.fulfill({ json: operations }));
+  await page.route('**/api/demo-console/verify', route => route.fulfill({ json: { demoBoundary: emergency } }));
   await page.goto('/demo-console');
   await page.getByLabel('Verify a specific case').fill(fullCaseId);
   await page.getByRole('button', { name: 'Verify trace' }).click();
@@ -87,23 +87,24 @@ test('Demo Console shows the human-controlled emergency response without startin
 });
 
 test('Demo Console explains how to create verification evidence when no routine event is available', async ({ page }) => {
-  await page.route('**/api/operations', route => route.fulfill({ json: { demoBoundary: null, runs: [], decisionTrace: [] } }));
+  await page.route('**/api/demo-console', route => route.fulfill({ json: { demoBoundary: null, runs: [], decisionTrace: [] } }));
   await page.goto('/demo-console');
   await expect(page.getByRole('heading', { name: 'No recent routine intake decision' })).toBeVisible();
   await expect(page.getByText('Complete a new fictional Chat intake')).toBeVisible();
   await expect(page.locator('#demo-boundary-path')).toBeHidden();
 });
 
-test('Demo Console requires a Command Center role', async ({ page }) => {
+test('Demo Console is available to every authenticated demo account', async ({ page }) => {
   await page.goto('/');
   const access = await page.evaluate(async () => {
     const { resolvePortalAccess } = await import('/src/app/router.js');
-    const auth = roles => ({ status: 'SIGNED_IN', user: { uid: 'demo-user' }, authorizationStatus: 'READY', identity: { user: { roles } } });
+    const auth = (roles, demoAccess = true) => ({ status: 'SIGNED_IN', user: { uid: 'demo-user' }, authorizationStatus: 'READY', identity: { demoAccess, user: { roles } } });
     return {
       patient: resolvePortalAccess('/demo-console', auth(['patient'])),
       commandCenter: resolvePortalAccess('/demo-console', auth(['command-center'])),
       commandCenterAlias: resolvePortalAccess('/demo-console', auth(['command_center'])),
+      unapproved: resolvePortalAccess('/demo-console', auth([], false)),
     };
   });
-  expect(access).toEqual({ patient: 'UNAUTHORIZED', commandCenter: 'AUTHORIZED', commandCenterAlias: 'AUTHORIZED' });
+  expect(access).toEqual({ patient: 'AUTHORIZED', commandCenter: 'AUTHORIZED', commandCenterAlias: 'AUTHORIZED', unapproved: 'UNAUTHORIZED' });
 });
